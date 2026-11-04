@@ -26,7 +26,7 @@ module.exports = {
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-5.5',
   OPENROUTER_BASE_URL: (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, ''),
-  AI_MAX_TOKENS: num(process.env.AI_MAX_TOKENS, 16000),
+  AI_MAX_TOKENS: num(process.env.AI_MAX_TOKENS, 32000), // yuqori chegara; har soʻrovga kerakli miqdor alohida hisoblanadi
   // MOCK_AI=1 bo'lsa API kalitsiz, tayyor namuna matn bilan ishlaydi (sinash uchun)
   MOCK_AI: process.env.MOCK_AI === '1',
 

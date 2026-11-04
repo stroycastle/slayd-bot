@@ -1,6 +1,7 @@
 // Telegram bot: buyurtma oqimi, balans, to'lovni admin tasdiqlashi, tahrirlash.
 const { Telegraf, Markup } = require('telegraf');
 const config = require('./config');
+const llm = require('./llm');
 const service = require('./service');
 const { PALETTES } = require('./deck');
 const { extractText, clip } = require('./extract');
@@ -484,6 +485,14 @@ function createBot({ store, download }) {
     return ctx.reply(
       `Foydalanuvchilar: ${s.users}\nTaqdimotlar: ${s.decks}\nTahrirlar: ${s.edits}\nTushum (xarajat qilingan): ${fmt(s.revenue)}\nTasdiqlangan toʻldirishlar: ${fmt(s.topups)}\nBalanslardagi qoldiq: ${fmt(s.balances)}\nTasdiq kutayotgan toʻlovlar: ${s.pending}`
     );
+  });
+  bot.command('ai', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    try {
+      return await ctx.reply(await llm.accountInfo());
+    } catch (e) {
+      return ctx.reply('AI holatini olib boʻlmadi: ' + String(e.message || e).slice(0, 300));
+    }
   });
   bot.command('qosh', (ctx) => {
     if (!isAdmin(ctx.from.id)) return;

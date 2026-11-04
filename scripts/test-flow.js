@@ -172,6 +172,14 @@ const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
   assert.strictEqual(store.getUser(USER).balance, b2 + 5000);
   ok('/stat va /qosh faqat adminga ishlaydi');
 
+  // 9b. admin: /ai
+  const beforeAi = texts(USER).length;
+  await send(cmd(USER, '/ai'));
+  assert.strictEqual(texts(USER).length, beforeAi, 'oddiy foydalanuvchiga /ai javob bermaydi');
+  await send(cmd(ADMIN, '/ai'));
+  assert(lastText(ADMIN).includes('sinov rejimi'), '/ai adminga holatni koʻrsatadi');
+  ok('/ai faqat adminga ishlaydi');
+
   // 10. daftar (ledger) balansga mos
   const u = store.getUser(USER);
   const net = store.db.ledger.filter((l) => l.userId === USER).reduce((s, l) => s + (l.type === 'charge' ? -l.amount : l.amount), 0);

@@ -17,10 +17,11 @@ function anthropic() {
   return client;
 }
 
-async function viaAnthropic(system, user, tool) {
+async function viaAnthropic(system, user, tool, maxTokens) {
   const res = await anthropic().messages.create({
     model: config.ANTHROPIC_MODEL,
-    max_tokens: config.AI_MAX_TOKENS,
+    // oqimsiz (non-streaming) soʻrovda SDK ~21 000 tokendan kattasini rad etadi
+    max_tokens: Math.min(maxTokens, 20000),
     system,
     tools: [tool],
     tool_choice: { type: 'tool', name: tool.name },
@@ -152,10 +153,11 @@ function parseChoice(json, tool) {
   return { err: 'AI kutilgan javobni qaytarmadi' };
 }
 
-async function viaOpenRouter(system, user, tool) {
+async function viaOpenRouter(system, user, tool, maxTokens) {
   const base = {
     model: config.OPENROUTER_MODEL,
-    max_tokens: config.AI_MAX_TOKENS,
+    // OpenRouter hisobda max_tokens ga yetarli pul borligini oldindan talab qiladi, shuning uchun keraksiz katta qoʻymaymiz
+    max_tokens: maxTokens,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -207,9 +209,47 @@ async function viaOpenRouter(system, user, tool) {
 }
 
 // ---------------------------------------------------------------- umumiy
-async function callTool(system, user, tool) {
-  if (config.AI_PROVIDER === 'openrouter') return viaOpenRouter(system, user, tool);
-  return viaAnthropic(system, user, tool);
+async function callTool(system, user, tool, { maxTokens } = {}) {
+  const max = Math.max(1000, Math.min(maxTokens || config.AI_MAX_TOKENS, config.AI_MAX_TOKENS));
+  if (config.AI_PROVIDER === 'openrouter') return viaOpenRouter(system, user, tool, max);
+  return viaAnthropic(system, user, tool, max);
 }
 
-module.exports = { callTool, extractJson };
+// ---------------------------------------------------------------- hisob holati (/ai buyrugʻi)
+const usd = (n) => (typeof n === 'number' && Number.isFinite(n) ? '$' + (Math.abs(n) >= 0.01 || n === 0 ? n.toFixed(2) : n.toFixed(4)) : '?');
+
+async function orGet(path) {
+  const res = await fetch(config.OPENROUTER_BASE_URL + path, {
+    headers: { Authorization: 'Bearer ' + config.OPENROUTER_API_KEY },
+    signal: AbortSignal.timeout(15000),
+  });
+  const text = await res.text();
+  if (!res.ok) throw orError(res.status, text);
+  const j = JSON.parse(text);
+  return j && j.data ? j.data : j;
+}
+
+/** Adminga koʻrsatish uchun AI manbasi va (OpenRouter boʻlsa) hisob qoldigʻi haqida matn. */
+async function accountInfo() {
+  if (config.MOCK_AI) return 'AI: sinov rejimi (MOCK_AI=1), haqiqiy AI ishlatilmayapti.';
+  if (config.AI_PROVIDER !== 'openrouter') return `AI: Claude (Anthropic)\nModel: ${config.ANTHROPIC_MODEL}\nQoldiqni console.anthropic.com → Billing da koʻring.`;
+  const [key, credits] = await Promise.allSettled([orGet('/key'), orGet('/credits')]);
+  const lines = ['AI: OpenRouter', `Model: ${config.OPENROUTER_MODEL}`];
+  if (key.status === 'fulfilled') {
+    const k = key.value;
+    if (k.is_free_tier === true) lines.push('Hisob turi: BEPUL (hali pul tashlanmagan, pullik modellar ishlamaydi)');
+    if (k.limit != null) lines.push(`Kalit limiti: ${usd(k.limit)}, sarflangan: ${usd(k.usage)}, qoldi: ${usd(k.limit_remaining)}`);
+    else lines.push(`Kalit boʻyicha sarflangan: ${usd(k.usage)} (limit qoʻyilmagan)`);
+  } else {
+    lines.push('Kalit holatini olib boʻlmadi: ' + key.reason.message);
+  }
+  if (credits.status === 'fulfilled' && typeof credits.value.total_credits === 'number') {
+    const c = credits.value;
+    lines.push(`Hisob: tashlangan ${usd(c.total_credits)}, sarflangan ${usd(c.total_usage)}, qoldi ${usd(c.total_credits - c.total_usage)}`);
+  } else {
+    lines.push('Hisob qoldigʻini aniq koʻrish: openrouter.ai/settings/credits');
+  }
+  return lines.join('\n');
+}
+
+module.exports = { callTool, extractJson, accountInfo };

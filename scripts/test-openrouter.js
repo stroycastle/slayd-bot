@@ -4,15 +4,16 @@ const http = require('http');
 const assert = require('assert');
 
 const FAKE_KEY = 'sk-or-v1-TESTKEY1234567890';
-let queue = []; // har bir so'rovga navbat bilan javob
+let queue = []; // har bir POST so'roviga navbat bilan javob
 let seen = []; // kelgan so'rovlar
+let routes = {}; // GET so'rovlari uchun: yo'l -> javob
 
 const server = http.createServer((req, res) => {
   let data = '';
   req.on('data', (c) => (data += c));
   req.on('end', () => {
-    seen.push({ url: req.url, auth: req.headers.authorization, body: JSON.parse(data || '{}') });
-    const step = queue.shift() || { status: 500, body: { error: { message: 'navbat boʻsh' } } };
+    seen.push({ method: req.method, url: req.url, auth: req.headers.authorization, body: JSON.parse(data || '{}') });
+    const step = req.method === 'GET' ? routes[req.url.replace('/api/v1', '')] || { status: 404, body: { error: { message: 'yoʻq' } } } : queue.shift() || { status: 500, body: { error: { message: 'navbat boʻsh' } } };
     res.writeHead(step.status, { 'Content-Type': 'application/json' });
     res.end(typeof step.body === 'string' ? step.body : JSON.stringify(step.body));
   });
@@ -37,6 +38,7 @@ let passed = 0;
 async function step(name, fn) {
   queue = [];
   seen = [];
+  routes = {};
   try {
     await fn();
     passed++;
@@ -80,6 +82,17 @@ server.listen(0, '127.0.0.1', async () => {
     assert.strictEqual(r.body.tools[0].function.name, 'submit_deck');
     assert.strictEqual(r.body.tools[0].function.parameters.type, 'object');
     assert.deepStrictEqual(r.body.tool_choice, { type: 'function', function: { name: 'submit_deck' } });
+    assert.strictEqual(r.body.max_tokens, 4700, '5 slayd: 1500 + 4 x 800 token');
+  });
+
+  await step('max_tokens slayd soniga qarab hisoblanadi, 30 slaydda ham chegaradan oshmaydi', async () => {
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    await ai.generateDeck({ ...params, slides: 30 });
+    assert.strictEqual(seen[0].body.max_tokens, 24700);
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    await ai.generateDeck({ ...params, slides: 8 });
+    assert.strictEqual(seen[1].body.max_tokens, 7100);
+    assert.ok(seen.every((x) => x.body.max_tokens <= 32000));
   });
 
   await step('arguments obyekt sifatida kelsa ham ishlaydi', async () => {
@@ -169,6 +182,33 @@ server.listen(0, '127.0.0.1', async () => {
     assert.strictEqual(out.deck.slides[0].lead, 'Yangi matn.');
     assert.strictEqual(out.deck.slides[0].notes, 'Izoh.');
     assert.strictEqual(seen[0].body.tools[0].function.name, 'submit_changes');
+  });
+
+  await step('/ai: bepul hisob aniqlanadi, /credits ruxsat bermasa ham xato bermaydi', async () => {
+    const llm = require('../src/llm');
+    routes['/key'] = { status: 200, body: { data: { label: 'sk-or-v1-abc...xyz', limit: null, usage: 0.0123, is_free_tier: true } } };
+    routes['/credits'] = { status: 403, body: { error: { message: 'management key required' } } };
+    const t = await llm.accountInfo();
+    assert.ok(/OpenRouter/.test(t) && /BEPUL/.test(t) && /\$0\.01/.test(t), t);
+    assert.ok(/openrouter\.ai\/settings\/credits/.test(t), t);
+    assert.ok(!t.includes(FAKE_KEY));
+    assert.strictEqual(seen.find((x) => x.url.endsWith('/key')).auth, 'Bearer ' + FAKE_KEY);
+  });
+
+  await step('/ai: pullik hisobda qoldiq hisoblanadi', async () => {
+    const llm = require('../src/llm');
+    routes['/key'] = { status: 200, body: { data: { limit: null, usage: 1.5, is_free_tier: false } } };
+    routes['/credits'] = { status: 200, body: { data: { total_credits: 5, total_usage: 1.5 } } };
+    const t = await llm.accountInfo();
+    assert.ok(/qoldi \$3\.50/.test(t) && !/BEPUL/.test(t), t);
+  });
+
+  await step('/ai: kalit notoʻgʻri boʻlsa tushunarli xabar', async () => {
+    const llm = require('../src/llm');
+    routes['/key'] = { status: 401, body: { error: { message: 'No auth credentials found' } } };
+    routes['/credits'] = { status: 401, body: { error: { message: 'No auth credentials found' } } };
+    const t = await llm.accountInfo();
+    assert.ok(/401/.test(t) && /kaliti/.test(t), t);
   });
 
   await step('provayder tanlash: Anthropic kaliti boʻlsa u ustun, AI_PROVIDER bilan majburlash mumkin', async () => {
