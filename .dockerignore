@@ -1,0 +1,9 @@
+node_modules
+.env
+.git
+data
+tmp
+out
+qa
+scripts
+*.zip

@@ -1,0 +1,60 @@
+require('dotenv').config({ quiet: true });
+const path = require('path');
+
+const num = (v, d) => {
+  const n = parseInt(String(v === undefined ? '' : v).replace(/\s/g, ''), 10);
+  return Number.isFinite(n) ? n : d;
+};
+
+// Qaysi AI ishlatiladi: aniq yozilgan boʻlsa shu; yozilmasa Claude kaliti bor boʻlsa Claude, boʻlmasa OpenRouter.
+function pickProvider() {
+  const forced = String(process.env.AI_PROVIDER || '').trim().toLowerCase();
+  if (forced === 'openrouter' || forced === 'anthropic') return forced;
+  if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
+  if (process.env.OPENROUTER_API_KEY) return 'openrouter';
+  return '';
+}
+
+module.exports = {
+  BOT_TOKEN: process.env.BOT_TOKEN || '',
+  AI_PROVIDER: pickProvider(),
+
+  // AI manbasi: Claude (Anthropic) kaliti bo'lsa o'sha, bo'lmasa OpenRouter.
+  // AI_PROVIDER=openrouter yoki anthropic deb majburlash mumkin.
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+  ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
+  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
+  OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-5.5',
+  OPENROUTER_BASE_URL: (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, ''),
+  AI_MAX_TOKENS: num(process.env.AI_MAX_TOKENS, 16000),
+  // MOCK_AI=1 bo'lsa API kalitsiz, tayyor namuna matn bilan ishlaydi (sinash uchun)
+  MOCK_AI: process.env.MOCK_AI === '1',
+
+  ADMIN_IDS: (process.env.ADMIN_IDS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(Number),
+  CARD_NUMBER: process.env.CARD_NUMBER || '0000 0000 0000 0000',
+  CARD_HOLDER: process.env.CARD_HOLDER || 'ISM FAMILIYA',
+
+  PRICE_SLIDE: num(process.env.PRICE_SLIDE, 5000), // 1 ta slayd
+  PRICE_EDIT: num(process.env.PRICE_EDIT, 3000), // 1 ta tahrir
+  MIN_TOPUP: num(process.env.MIN_TOPUP, 10000),
+  MIN_SLIDES: 8,
+  MAX_SLIDES: 30,
+
+  SOFFICE_PATH: process.env.SOFFICE_PATH || '',
+  // DISABLE_PDF=1: PDF yasalmaydi, faqat .pptx (xotirasi kichik serverlarda LibreOffice jarayonni oʻldirib qoʻymasligi uchun)
+  DISABLE_PDF: process.env.DISABLE_PDF === '1',
+
+  // Webhook rejimi (hosting uchun). WEBHOOK_URL yoki Render bergan RENDER_EXTERNAL_URL boʻlsa yoqiladi,
+  // boʻlmasa bot oddiy "polling" rejimida ishlaydi (kompyuterda).
+  WEBHOOK_URL: String(process.env.WEBHOOK_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, ''),
+  PORT: num(process.env.PORT, 3000),
+
+  DATA_DIR: path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', 'data')),
+  TMP_DIR: path.resolve(process.env.TMP_DIR || path.join(__dirname, '..', 'tmp')),
+
+  MAX_LECTURE_CHARS: 60000,
+};
