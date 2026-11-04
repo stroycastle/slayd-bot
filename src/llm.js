@@ -60,9 +60,48 @@ function orError(status, bodyText) {
   return err;
 }
 
-async function post(body) {
+// ---- Kalitlar puli: bir nechta OpenRouter kaliti. Birinchisi ishlatiladi; puli tugasa (402), kalit
+// notoʻgʻri boʻlsa (401/403) yoki limitga yetsa (429) keyingisiga oʻtadi. Soʻrov foydalanuvchiga sezdirmasdan
+// keyingi kalit bilan takrorlanadi. Ishlamagan kalit bir muddat chetga qoʻyiladi, keyin qayta tekshiriladi.
+const DEAD_MS = { 401: 6 * 3600e3, 402: 10 * 60e3, 403: 10 * 60e3, 429: 30e3 };
+const WHY = { 401: 'kalit notoʻgʻri yoki oʻchirilgan (401)', 402: 'puli tugagan (402)', 403: 'ruxsat yoʻq yoki limit (403)' };
+let pool = [];
+let listener = null;
+
+function setKeys(keys) {
+  pool = [...new Set((keys || []).filter(Boolean))].map((key, i) => ({ key, id: i + 1, deadUntil: 0, status: 0 }));
+}
+setKeys(config.OPENROUTER_API_KEYS);
+
+/** Kalit holati oʻzgarganda (ishlamay qoldi / yana ishladi) xabar matnini oladigan funksiya. */
+function onKeyEvent(fn) {
+  listener = fn;
+}
+const mask = (k) => '…' + String(k).slice(-4);
+const isLive = (k) => k.deadUntil <= Date.now();
+const emit = (text) => {
+  try {
+    if (listener) listener(text);
+  } catch (_) {
+    /* xabar yuborilmasa ham ish davom etadi */
+  }
+};
+
+function markDead(k, status) {
+  const wasLive = isLive(k);
+  k.deadUntil = Date.now() + (DEAD_MS[status] || 60e3);
+  k.status = status;
+  if (!wasLive || !WHY[status]) return; // 429 vaqtinchalik: xabar bermaymiz
+  const left = pool.filter(isLive).length;
+  emit(
+    `⚠️ OpenRouter kaliti #${k.id} (${mask(k.key)}): ${WHY[status]}.\n` +
+      (left ? `Keyingisiga oʻtdim. Ishlaydigan kalitlar: ${left}/${pool.length}.` : '❗ Ishlaydigan kalit qolmadi! Hisobga pul tashlang yoki yangi kalit qoʻshing.'),
+  );
+}
+
+async function attempt(k, body) {
   let lastErr;
-  for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
+  for (let n = 1; n <= MAX_TRIES; n++) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     try {
@@ -71,7 +110,7 @@ async function post(body) {
         signal: ctrl.signal,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + config.OPENROUTER_API_KEY,
+          Authorization: 'Bearer ' + k.key,
           'X-Title': 'Slayd bot',
         },
         body: JSON.stringify(body),
@@ -85,23 +124,54 @@ async function post(body) {
           throw Object.assign(new Error('OpenRouter notoʻgʻri javob qaytardi'), { retry: true });
         }
         // OpenRouter ba'zan 200 bilan {error:{...}} qaytaradi
-        if (json && json.error && !json.choices) throw Object.assign(orError(json.error.code || 502, JSON.stringify(json)), { retry: true });
+        if (json && json.error && !json.choices) {
+          const st = Number(json.error.code) || 502;
+          throw Object.assign(orError(st, JSON.stringify(json)), { retry: st >= 500 });
+        }
         return json;
       }
-      const err = orError(res.status, text);
-      err.retry = res.status === 429 || res.status >= 500;
-      throw err;
+      throw orError(res.status, text);
     } catch (e) {
       if (e.name === 'AbortError') e = Object.assign(new Error('OpenRouter javob bermadi (vaqt tugadi)'), { retry: true });
-      else if (e.cause && !e.status && !e.retry) e = Object.assign(new Error('OpenRouterga ulanib boʻlmadi: ' + (e.cause.code || e.cause.message || e.message)), { retry: true });
+      else if (e.cause && !e.status && e.retry === undefined) e = Object.assign(new Error('OpenRouterga ulanib boʻlmadi: ' + (e.cause.code || e.cause.message || e.message)), { retry: true });
+      // kalitga oid xatolar: boshqa kalitga oʻtamiz (bitta kalit boʻlsa, 429 da kutib qayta uriniladi)
+      e.rotate = e.status === 401 || e.status === 402 || e.status === 403 || (e.status === 429 && pool.length > 1);
+      if (e.retry === undefined) e.retry = e.status === 429 || e.status >= 500;
+      if (e.rotate) e.retry = false;
       lastErr = e;
-      if (!e.retry || attempt === MAX_TRIES) throw e;
-      await sleep(RETRY_MS * attempt);
+      if (!e.retry || n === MAX_TRIES) throw e;
+      await sleep(RETRY_MS * n);
     } finally {
       clearTimeout(timer);
     }
   }
   throw lastErr;
+}
+
+async function post(body) {
+  if (!pool.length) throw new Error('OpenRouter kaliti yoʻq (.env da OPENROUTER_API_KEY yoki OPENROUTER_API_KEYS)');
+  // ishlayotganlar birinchi; hammasi ishlamayotgan boʻlsa ham hammasini sinab koʻramiz (pul tashlangan boʻlishi mumkin)
+  const order = pool.filter(isLive).concat(pool.filter((k) => !isLive(k)));
+  let lastErr;
+  for (const k of order) {
+    const wasDead = !isLive(k);
+    try {
+      const json = await attempt(k, body);
+      if (wasDead) {
+        k.deadUntil = 0;
+        k.status = 0;
+        emit(`✅ OpenRouter kaliti #${k.id} (${mask(k.key)}) yana ishlayapti.`);
+      }
+      return json;
+    } catch (e) {
+      lastErr = e;
+      if (!e.rotate || pool.length < 2) throw e;
+      markDead(k, e.status);
+    }
+  }
+  const err = new Error(`Barcha OpenRouter kalitlari ishlamadi (${pool.length} ta). Oxirgi xato: ${lastErr.message}`);
+  err.status = lastErr.status;
+  throw err;
 }
 
 // Matn ichidan JSON obyektni ajratib olish (```json ... ``` va ortiqcha gaplarni tashlaydi)
@@ -218,9 +288,9 @@ async function callTool(system, user, tool, { maxTokens } = {}) {
 // ---------------------------------------------------------------- hisob holati (/ai buyrugʻi)
 const usd = (n) => (typeof n === 'number' && Number.isFinite(n) ? '$' + (Math.abs(n) >= 0.01 || n === 0 ? n.toFixed(2) : n.toFixed(4)) : '?');
 
-async function orGet(path) {
+async function orGet(path, key) {
   const res = await fetch(config.OPENROUTER_BASE_URL + path, {
-    headers: { Authorization: 'Bearer ' + config.OPENROUTER_API_KEY },
+    headers: { Authorization: 'Bearer ' + key },
     signal: AbortSignal.timeout(15000),
   });
   const text = await res.text();
@@ -229,27 +299,37 @@ async function orGet(path) {
   return j && j.data ? j.data : j;
 }
 
-/** Adminga koʻrsatish uchun AI manbasi va (OpenRouter boʻlsa) hisob qoldigʻi haqida matn. */
-async function accountInfo() {
-  if (config.MOCK_AI) return 'AI: sinov rejimi (MOCK_AI=1), haqiqiy AI ishlatilmayapti.';
-  if (config.AI_PROVIDER !== 'openrouter') return `AI: Claude (Anthropic)\nModel: ${config.ANTHROPIC_MODEL}\nQoldiqni console.anthropic.com → Billing da koʻring.`;
-  const [key, credits] = await Promise.allSettled([orGet('/key'), orGet('/credits')]);
-  const lines = ['AI: OpenRouter', `Model: ${config.OPENROUTER_MODEL}`];
-  if (key.status === 'fulfilled') {
-    const k = key.value;
-    if (k.is_free_tier === true) lines.push('Hisob turi: BEPUL (hali pul tashlanmagan, pullik modellar ishlamaydi)');
-    if (k.limit != null) lines.push(`Kalit limiti: ${usd(k.limit)}, sarflangan: ${usd(k.usage)}, qoldi: ${usd(k.limit_remaining)}`);
-    else lines.push(`Kalit boʻyicha sarflangan: ${usd(k.usage)} (limit qoʻyilmagan)`);
+async function keyLines(k) {
+  const live = isLive(k);
+  const mins = Math.ceil((k.deadUntil - Date.now()) / 60000);
+  const head = `#${k.id} ${mask(k.key)} ${live ? '✅ ishlayapti' : `⛔ chetga qoʻyilgan (${k.status}), ~${mins} daqiqadan keyin qayta tekshiriladi`}`;
+  const [info, credits] = await Promise.allSettled([orGet('/key', k.key), orGet('/credits', k.key)]);
+  const lines = [head];
+  if (info.status === 'fulfilled') {
+    const i = info.value;
+    if (i.is_free_tier === true) lines.push('  Hisob turi: BEPUL (hali pul tashlanmagan, pullik modellar ishlamaydi)');
+    if (i.limit != null) lines.push(`  Kalit limiti: ${usd(i.limit)}, sarflangan: ${usd(i.usage)}, qoldi: ${usd(i.limit_remaining)}`);
+    else lines.push(`  Kalit boʻyicha sarflangan: ${usd(i.usage)} (limit qoʻyilmagan)`);
   } else {
-    lines.push('Kalit holatini olib boʻlmadi: ' + key.reason.message);
+    lines.push('  Holatini olib boʻlmadi: ' + info.reason.message);
   }
   if (credits.status === 'fulfilled' && typeof credits.value.total_credits === 'number') {
     const c = credits.value;
-    lines.push(`Hisob: tashlangan ${usd(c.total_credits)}, sarflangan ${usd(c.total_usage)}, qoldi ${usd(c.total_credits - c.total_usage)}`);
+    lines.push(`  Hisob: tashlangan ${usd(c.total_credits)}, sarflangan ${usd(c.total_usage)}, qoldi ${usd(c.total_credits - c.total_usage)}`);
   } else {
-    lines.push('Hisob qoldigʻini aniq koʻrish: openrouter.ai/settings/credits');
+    lines.push('  Hisob qoldigʻini aniq koʻrish: openrouter.ai/settings/credits');
   }
-  return lines.join('\n');
+  return lines;
 }
 
-module.exports = { callTool, extractJson, accountInfo };
+/** Adminga koʻrsatish uchun AI manbasi va (OpenRouter boʻlsa) har bir kalitning holati va qoldigʻi. */
+async function accountInfo() {
+  if (config.MOCK_AI) return 'AI: sinov rejimi (MOCK_AI=1), haqiqiy AI ishlatilmayapti.';
+  if (config.AI_PROVIDER !== 'openrouter') return `AI: Claude (Anthropic)\nModel: ${config.ANTHROPIC_MODEL}\nQoldiqni console.anthropic.com → Billing da koʻring.`;
+  const out = [`AI: OpenRouter (${pool.length} ta kalit)`, `Model: ${config.OPENROUTER_MODEL}`, ''];
+  const parts = await Promise.all(pool.map(keyLines));
+  parts.forEach((p) => out.push(...p));
+  return out.join('\n');
+}
+
+module.exports = { callTool, extractJson, accountInfo, onKeyEvent, setKeys };

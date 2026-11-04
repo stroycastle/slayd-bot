@@ -211,6 +211,108 @@ server.listen(0, '127.0.0.1', async () => {
     assert.ok(/401/.test(t) && /kaliti/.test(t), t);
   });
 
+  // ---- bir nechta kalit
+  const KA = 'sk-or-v1-AAAA1111';
+  const KB = 'sk-or-v1-BBBB2222';
+  const KC = 'sk-or-v1-CCCC3333';
+  const llm = require('../src/llm');
+  const events = [];
+  llm.onKeyEvent((t) => events.push(t));
+
+  await step('2 kalit: birinchisining puli tugasa (402) ikkinchisiga oʻtadi, keyingi soʻrovlar toʻgʻridan-toʻgʻri ikkinchisiga', async () => {
+    llm.setKeys([KA, KB]);
+    events.length = 0;
+    queue.push({ status: 402, body: { error: { message: 'Insufficient credits' } } });
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    const deck = await ai.generateDeck(params);
+    assert.strictEqual(deck.slides.length, 4);
+    assert.deepStrictEqual(seen.map((x) => x.auth), ['Bearer ' + KA, 'Bearer ' + KB]);
+    assert.strictEqual(events.length, 1);
+    assert.ok(/#1/.test(events[0]) && /1111/.test(events[0]) && /402/.test(events[0]) && /Keyingisiga/.test(events[0]), events[0]);
+    assert.ok(!events[0].includes(KA), 'xabarda toʻliq kalit boʻlmasligi kerak');
+    seen = [];
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    await ai.generateDeck(params);
+    assert.deepStrictEqual(seen.map((x) => x.auth), ['Bearer ' + KB], 'chetga qoʻyilgan kalit qayta urinilmaydi');
+    assert.strictEqual(events.length, 1, 'xabar faqat bir marta');
+  });
+
+  await step('2 kalit: 401 va 429 ham keyingi kalitga oʻtkazadi (429 da kutmasdan)', async () => {
+    llm.setKeys([KA, KB]);
+    queue.push({ status: 401, body: { error: { message: 'bad key' } } });
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    await ai.generateDeck(params);
+    assert.deepStrictEqual(seen.map((x) => x.auth), ['Bearer ' + KA, 'Bearer ' + KB]);
+    llm.setKeys([KA, KB]);
+    seen = [];
+    queue.push({ status: 429, body: { error: { message: 'rate limited' } } });
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    const t0 = Date.now();
+    await ai.generateDeck(params);
+    assert.deepStrictEqual(seen.map((x) => x.auth), ['Bearer ' + KA, 'Bearer ' + KB]);
+    assert.ok(Date.now() - t0 < 1000);
+  });
+
+  await step('3 kalit: ketma-ket ikkitasi ishlamasa uchinchisiga yetib boradi', async () => {
+    llm.setKeys([KA, KB, KC]);
+    queue.push({ status: 402, body: { error: { message: 'no credits' } } });
+    queue.push({ status: 402, body: { error: { message: 'no credits' } } });
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    const deck = await ai.generateDeck(params);
+    assert.strictEqual(deck.slides.length, 4);
+    assert.deepStrictEqual(seen.map((x) => x.auth), ['Bearer ' + KA, 'Bearer ' + KB, 'Bearer ' + KC]);
+  });
+
+  await step('hamma kalitning puli tugasa: aniq xato; pul tashlansa keyingi soʻrovda oʻzi tiklanadi', async () => {
+    llm.setKeys([KA, KB]);
+    events.length = 0;
+    queue.push({ status: 402, body: { error: { message: 'no credits' } } });
+    queue.push({ status: 402, body: { error: { message: 'no credits' } } });
+    await assert.rejects(ai.generateDeck(params), (e) => /Barcha OpenRouter kalitlari/.test(e.message) && /402/.test(e.message) && e.status === 402);
+    assert.strictEqual(seen.length, 2);
+    assert.ok(events.some((t) => /Ishlaydigan kalit qolmadi/.test(t)), 'adminga ogohlantirish: ' + events.join(' | '));
+    // B ga pul tashlandi: hamma kalit "chetda" boʻlsa ham qayta sinab koʻriladi
+    seen = [];
+    events.length = 0;
+    queue.push({ status: 402, body: { error: { message: 'no credits' } } });
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    const deck = await ai.generateDeck(params);
+    assert.strictEqual(deck.slides.length, 4);
+    assert.ok(events.some((t) => /yana ishlayapti/.test(t) && /2222/.test(t)), events.join(' | '));
+  });
+
+  await step('kalitga aloqasi yoʻq xato (model tool ni qoʻllamaydi) kalitni chetga qoʻymaydi', async () => {
+    llm.setKeys([KA, KB]);
+    queue.push({ status: 404, body: { error: { message: 'No endpoints found that support tool use' } } });
+    queue.push(textReply(JSON.stringify(RAW_DECK)));
+    await ai.generateDeck(params);
+    assert.deepStrictEqual(seen.map((x) => x.auth), ['Bearer ' + KA, 'Bearer ' + KA]);
+  });
+
+  await step('/ai: har bir kalit alohida, qisqartirilgan koʻrinishda', async () => {
+    llm.setKeys([KA, KB]);
+    routes['/key'] = { status: 200, body: { data: { limit: null, usage: 0.5, is_free_tier: false } } };
+    routes['/credits'] = { status: 200, body: { data: { total_credits: 5, total_usage: 0.5 } } };
+    const t = await llm.accountInfo();
+    assert.ok(/2 ta kalit/.test(t) && /#1 …1111/.test(t) && /#2 …2222/.test(t), t);
+    assert.ok(!t.includes(KA) && !t.includes(KB), 'toʻliq kalit chiqmasligi kerak');
+    assert.strictEqual((t.match(/qoldi \$4\.50/g) || []).length, 2, t);
+    const auths = seen.filter((x) => x.method === 'GET').map((x) => x.auth);
+    assert.ok(auths.includes('Bearer ' + KA) && auths.includes('Bearer ' + KB));
+  });
+
+  await step('OPENROUTER_API_KEY + OPENROUTER_API_KEYS birlashtiriladi, takrorlar olib tashlanadi', async () => {
+    const { execFileSync } = require('child_process');
+    const out = execFileSync(process.execPath, ['-e', "console.log(JSON.stringify(require('./src/config').OPENROUTER_API_KEYS))"], {
+      cwd: require('path').join(__dirname, '..'),
+      env: { PATH: process.env.PATH, OPENROUTER_API_KEY: 'k1', OPENROUTER_API_KEYS: 'k2, k3\nk1;k4' },
+    });
+    assert.deepStrictEqual(JSON.parse(String(out)), ['k1', 'k2', 'k3', 'k4']);
+  });
+
+  llm.setKeys([FAKE_KEY]);
+  llm.onKeyEvent(null);
+
   await step('provayder tanlash: Anthropic kaliti boʻlsa u ustun, AI_PROVIDER bilan majburlash mumkin', async () => {
     const pick = (env) => {
       const { execFileSync } = require('child_process');

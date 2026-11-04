@@ -19,6 +19,7 @@ Telegram bot: foydalanuvchi mavzu, til, rang tanlaydi (xohlasa maʼruza matni va
 
 ### AI manbasini almashtirish
 
+- **Bir nechta OpenRouter kaliti:** `OPENROUTER_API_KEY` ga asosiy kalitni, `OPENROUTER_API_KEYS` ga qolganlarini (vergul bilan) yozing. Birinchi kalitning puli tugasa (402), kalit oʻchsa (401/403) yoki limitga yetsa (429), bot soʻrovni foydalanuvchiga sezdirmasdan keyingi kalit bilan takrorlaydi va adminga xabar yuboradi. Ishlamagan kalit 10 daqiqa (notoʻgʻri kalit 6 soat) chetda turadi, keyin qayta tekshiriladi; hamma kalit ishlamasa, baribir hammasi sinab koʻriladi. Adminlar `/ai` buyrugʻi bilan har bir kalit holati va qoldigʻini koʻradi.
 - Bot qaysi AI ishlatayotganini ishga tushganda yozadi: `🤖 AI: OpenRouter, model ...`
 - `OPENROUTER_MODEL` ni oʻzgartirib modelni almashtirasiz. `anthropic/claude-sonnet-5.5` sifatli; `google/gemini-3.8-flash` arzonroq, lekin sifati va oʻzbekcha matni pastroq boʻlishi mumkin, avval sinab koʻring.
 - Claudening oʻz kaliti kelganda `.env` ga `ANTHROPIC_API_KEY=...` yozing va botni qayta ishga tushiring: bot avtomatik Claudega oʻtadi, kodga tegish shart emas. Majburlash uchun `AI_PROVIDER=openrouter` yoki `anthropic`.

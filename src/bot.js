@@ -54,6 +54,7 @@ function createBot({ store, download }) {
 
   const notifyAdmins = (text, extra) =>
     Promise.all(config.ADMIN_IDS.map((id) => bot.telegram.sendMessage(id, text, extra).catch(() => {})));
+  llm.onKeyEvent((text) => notifyAdmins(text));
 
   // ------------------------------------------------------------ umumiy
   bot.use(async (ctx, next) => {

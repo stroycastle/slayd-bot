@@ -7,11 +7,16 @@ const num = (v, d) => {
 };
 
 // Qaysi AI ishlatiladi: aniq yozilgan boʻlsa shu; yozilmasa Claude kaliti bor boʻlsa Claude, boʻlmasa OpenRouter.
+// OpenRouter kalitlari: OPENROUTER_API_KEY (asosiy) + OPENROUTER_API_KEYS (vergul, boʻshliq yoki yangi qator bilan ajratilgan qoʻshimchalar)
+const OPENROUTER_API_KEYS = [
+  ...new Set(`${process.env.OPENROUTER_API_KEY || ''},${process.env.OPENROUTER_API_KEYS || ''}`.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean)),
+];
+
 function pickProvider() {
   const forced = String(process.env.AI_PROVIDER || '').trim().toLowerCase();
   if (forced === 'openrouter' || forced === 'anthropic') return forced;
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
-  if (process.env.OPENROUTER_API_KEY) return 'openrouter';
+  if (OPENROUTER_API_KEYS.length) return 'openrouter';
   return '';
 }
 
@@ -23,7 +28,8 @@ module.exports = {
   // AI_PROVIDER=openrouter yoki anthropic deb majburlash mumkin.
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
   ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
-  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
+  OPENROUTER_API_KEY: OPENROUTER_API_KEYS[0] || '',
+  OPENROUTER_API_KEYS,
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-5.5',
   OPENROUTER_BASE_URL: (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, ''),
   AI_MAX_TOKENS: num(process.env.AI_MAX_TOKENS, 32000), // yuqori chegara; har soʻrovga kerakli miqdor alohida hisoblanadi
