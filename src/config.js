@@ -38,8 +38,13 @@ module.exports = {
   CARD_NUMBER: process.env.CARD_NUMBER || '0000 0000 0000 0000',
   CARD_HOLDER: process.env.CARD_HOLDER || 'ISM FAMILIYA',
 
-  PRICE_SLIDE: num(process.env.PRICE_SLIDE, 5000), // 1 ta slayd
+  // Butun taqdimot narxi, slayd soniga bogʻliq emas (8 ta ham, 30 ta ham bir xil). 0 boʻlsa, slayd boshiga PRICE_SLIDE olinadi.
+  PRICE_DECK: num(process.env.PRICE_DECK, 5000),
+  PRICE_SLIDE: num(process.env.PRICE_SLIDE, 5000), // faqat PRICE_DECK=0 boʻlganda ishlaydi
   PRICE_EDIT: num(process.env.PRICE_EDIT, 3000), // 1 ta tahrir
+  deckPrice(slides) {
+    return this.PRICE_DECK > 0 ? this.PRICE_DECK : slides * this.PRICE_SLIDE;
+  },
   MIN_TOPUP: num(process.env.MIN_TOPUP, 10000),
   MIN_SLIDES: 8,
   MAX_SLIDES: 30,

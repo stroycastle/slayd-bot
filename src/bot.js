@@ -62,9 +62,23 @@ function createBot({ store, download }) {
   });
   bot.catch((err) => console.error('Bot xatosi:', err));
 
+  const flat = config.PRICE_DECK > 0;
+  const priceLine = () =>
+    flat
+      ? `• Taqdimot (${config.MIN_SLIDES}–${config.MAX_SLIDES} slayd, narxi bir xil) — <b>${fmt(config.PRICE_DECK)}</b>`
+      : `• 1 ta slayd — <b>${fmt(config.PRICE_SLIDE)}</b>`;
+  // Buyurtmadagidan kam slayd chiqsa qaytariladigan pul. Bir xil narxda faqat sezilarli kamlikda (3 va undan ortiq slayd), 100 soʻmgacha yaxlitlanadi.
+  const shortfallRefund = (order, finalSlides) => {
+    const missing = order.slides - finalSlides;
+    if (missing <= 0) return 0;
+    if (!flat) return missing * config.PRICE_SLIDE;
+    if (missing < 3) return 0;
+    return Math.min(order.price, Math.round((order.price * missing) / order.slides / 100) * 100);
+  };
+
   const welcome = () =>
     `Salom! Men talabalar uchun taqdimot (slayd) yasab beraman.\n\n` +
-    `• 1 ta slayd — <b>${fmt(config.PRICE_SLIDE)}</b>\n` +
+    `${priceLine()}\n` +
     `• Slaydni tahrirlash (oʻzgartirish, gap qoʻshish) — <b>${fmt(config.PRICE_EDIT)}</b>\n\n` +
     `Tilni (oʻzbek lotin/kirill, rus) va rangni oʻzingiz tanlaysiz. Maʼruza matni va adabiyotlaringiz boʻlsa, yuborasiz, men shulardan foydalanaman. ` +
     `Natija .pptx va PDF koʻrinishida keladi.\n\nBoshlash uchun «${BTN_NEW}» tugmasini bosing.`;
@@ -88,7 +102,7 @@ function createBot({ store, download }) {
 
   bot.hears(BTN_HELP, (ctx) =>
     ctx.reply(
-      `<b>Narxlar</b>\n• Slayd: ${fmt(config.PRICE_SLIDE)} (masalan, 12 slayd = ${fmt(12 * config.PRICE_SLIDE)})\n• Tahrir: ${fmt(config.PRICE_EDIT)}\n\n` +
+      `<b>Narxlar</b>\n${priceLine()}\n• Tahrir: ${fmt(config.PRICE_EDIT)}\n\n` +
         `<b>Qanday ishlaydi</b>\n1. Balansni toʻldirasiz (kartaga oʻtkazib, chekni yuborasiz).\n2. «${BTN_NEW}» — mavzu, slaydlar soni, til, rang, maʼruza matni.\n3. Taqdimot tayyor boʻlgach .pptx va PDF keladi.\n4. Oʻzgartirish kerak boʻlsa «${BTN_EDIT}».\n\n` +
         `<b>Muhim</b>\nMatnni AI yozadi. Topshirishdan oldin oʻqib chiqing, faktlar va adabiyotlar roʻyxatini tekshiring, kerak boʻlsa oʻz soʻzingiz bilan moslang.`,
       HTML
@@ -108,7 +122,7 @@ function createBot({ store, download }) {
     [Markup.button.callback('❌ Bekor qilish', 'cancel')],
   ]);
   const askSlides = (ctx) =>
-    ctx.reply(`Nechta slayd kerak? Tugmani bosing yoki ${config.MIN_SLIDES}–${config.MAX_SLIDES} oraligʻida raqam yozing.\nNarxi: ${fmt(config.PRICE_SLIDE)} / slayd.`, slidesKb);
+    ctx.reply(`Nechta slayd kerak? Tugmani bosing yoki ${config.MIN_SLIDES}–${config.MAX_SLIDES} oraligʻida raqam yozing.\n${flat ? `Narxi: ${fmt(config.PRICE_DECK)} (slayd soniga bogʻliq emas).` : `Narxi: ${fmt(config.PRICE_SLIDE)} / slayd.`}`, slidesKb);
 
   const askLang = (ctx) =>
     ctx.reply(
@@ -170,7 +184,7 @@ function createBot({ store, download }) {
     setState(id, 'confirm', d);
     const user = store.getUser(id);
     const p = user.profile || {};
-    const price = d.slides * config.PRICE_SLIDE;
+    const price = config.deckPrice(d.slides);
     const text =
       `<b>Buyurtmani tekshiring</b>\n\n` +
       `Mavzu: ${esc(d.topic)}\n` +
@@ -261,7 +275,7 @@ function createBot({ store, download }) {
     const d = drafts.get(id);
     if (!d) return ctx.reply('Buyurtma topilmadi. «' + BTN_NEW + '» tugmasidan boshlang.', menu);
     if (busy.has(id)) return ctx.reply('Avvalgi taqdimotingiz hali tayyorlanmoqda.');
-    const price = d.slides * config.PRICE_SLIDE;
+    const price = config.deckPrice(d.slides);
     if (!store.charge(id, price, `Taqdimot: ${d.topic.slice(0, 40)}`)) {
       const need = price - store.getUser(id).balance;
       return ctx.reply(
@@ -307,7 +321,7 @@ function createBot({ store, download }) {
       // kamroq slayd chiqsa, farqi qaytariladi
       let refund = 0;
       if (res.finalSlides < order.slides) {
-        refund = (order.slides - res.finalSlides) * config.PRICE_SLIDE;
+        refund = shortfallRefund(order, res.finalSlides);
         store.refund(userId, refund, `Slayd kam chiqdi: buyurtma #${order.id}`);
       }
       store.updateOrder(order.id, { status: 'done', deck: res.deck, finalSlides: res.finalSlides, price: order.price - refund });

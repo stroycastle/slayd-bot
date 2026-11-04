@@ -2,7 +2,7 @@
 
 Telegram bot: foydalanuvchi mavzu, til, rang tanlaydi (xohlasa maʼruza matni va adabiyotlarini yuboradi), bot AI yordamida slaydlarni yozib, tayyor **.pptx** va **PDF** qaytaradi.
 
-- Slayd: **5 000 soʻm**, tahrir: **3 000 soʻm** (`.env` dan oʻzgartiriladi)
+- Taqdimot: **5 000 soʻm** (8 ta ham, 30 ta ham bir xil narx), tahrir: **3 000 soʻm** (`.env` dagi `PRICE_DECK`, `PRICE_EDIT` dan oʻzgartiriladi; `PRICE_DECK=0` boʻlsa slayd boshiga `PRICE_SLIDE` olinadi)
 - Tillar: oʻzbek (lotin), oʻzbek (kirill), rus
 - 6 ta rang, 10 xil slayd turi (reja, taʼrif, kartalar, jadval, jarayon, xulosa, adabiyotlar va h.k.), har slaydga nutq matni (speaker notes)
 - Toʻlov: foydalanuvchi **balansni toʻldiradi** (kartaga oʻtkazib chek yuboradi), siz botda ✅ bosib tasdiqlaysiz

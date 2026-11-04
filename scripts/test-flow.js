@@ -82,10 +82,10 @@ const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
   await send(cb(USER, 'ref:done'));
   for (const t of ['Nuriddinova Farangiz', '2606', 'OʻzDJTU', 'Xitoy filologiyasi']) await send(msg(USER, t));
   const confirm = lastText(USER);
-  assert(confirm.includes('Buyurtmani tekshiring') && confirm.includes('40 000'), 'tasdiqlash oynasi va narx (8 x 5000)');
+  assert(confirm.includes('Buyurtmani tekshiring') && confirm.includes('5 000') && !confirm.includes('40 000'), 'tasdiqlash oynasi va bir xil narx (5000)');
   assert(confirm.includes('Ўзбекча') && confirm.includes('Binafsha') && confirm.includes('bor ('), 'tanlovlar');
   assert(store.getUser(USER).profile.fullName === 'Nuriddinova Farangiz', 'titul saqlandi');
-  ok('Mavzu, slayd soni, til, rang, matn+fayl, adabiyot, titul oqimi ishladi (40 000 soʻm)');
+  ok('Mavzu, slayd soni, til, rang, matn+fayl, adabiyot, titul oqimi ishladi (bir xil narx 5 000 soʻm)');
 
   // 3. pul yetmaydi
   await send(cb(USER, 'order:go'));
@@ -113,7 +113,7 @@ const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
   // 5. buyurtmani davom ettirish va tayyorlash
   await send(cb(USER, 'order:retry'));
   await send(cb(USER, 'order:go'));
-  assert.strictEqual(store.getUser(USER).balance, 60000, 'pul yechildi');
+  assert.strictEqual(store.getUser(USER).balance, 95000, 'pul yechildi');
   await waitFor(() => texts(USER).some((t) => t.includes('Tayyor!')), 120000, 'taqdimot tayyor');
   const files = docsTo(USER);
   assert(files.length >= 1 && files[0].data.document.filename.endsWith('.pptx'), '.pptx yuborildi');
@@ -128,7 +128,7 @@ const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
   await send(msg(USER, '✏️ Tahrirlash'));
   await send(cb(USER, 'edit:pick:' + order1.id));
   await send(msg(USER, '3-slaydga ikkita gap qoʻshing'));
-  assert.strictEqual(store.getUser(USER).balance, 57000, 'tahrir 3000 soʻm');
+  assert.strictEqual(store.getUser(USER).balance, 92000, 'tahrir 3000 soʻm (95000 - 3000)');
   await waitFor(() => texts(USER).some((t) => t.startsWith('✅ Sinov rejimi')), 60000, 'tahrir tayyor');
   assert(docsTo(USER).length >= 2, 'tahrirdan keyin yangi fayl yuborildi');
   assert(JSON.stringify(store.getOrder(order1.id).deck.slides[1]).includes('tahrir qoʻshildi'), 'tahrir buyurtmada saqlandi');
