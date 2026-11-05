@@ -4,7 +4,7 @@ Telegram bot: foydalanuvchi mavzu, til, rang tanlaydi (xohlasa maʼruza matni va
 
 - Taqdimot: **5 000 soʻm** (8 ta ham, 30 ta ham bir xil narx), tahrir: **3 000 soʻm** (`.env` dagi `PRICE_DECK`, `PRICE_EDIT` dan oʻzgartiriladi; `PRICE_DECK=0` boʻlsa slayd boshiga `PRICE_SLIDE` olinadi)
 - Tillar: oʻzbek (lotin), oʻzbek (kirill), rus
-- 6 ta rang, 10 xil slayd turi (reja, taʼrif, kartalar, jadval, jarayon, xulosa, adabiyotlar va h.k.), har slaydga nutq matni (speaker notes)
+- 6 ta rang, **18 xil slayd turi**: reja, taʼrif, kartalar, ikki ustun, jadval, jarayon, asosiy fikr, qatorlar, xulosa, adabiyotlar va yangilari: vaqt chizigʻi, markaziy tushuncha (hub), piramida, aylanma jarayon, taqqoslash (VS), katta raqamlar, rangli panel + izohlar, boʻlim sarlavhasi (16+ slaydli taqdimotlarda). AI mavzuga mosini oʻzi tanlaydi. Har slaydga nutq matni (speaker notes) ham yoziladi
 - Toʻlov: foydalanuvchi **balansni toʻldiradi** (kartaga oʻtkazib chek yuboradi), siz botda ✅ bosib tasdiqlaysiz
 - Xatolik boʻlsa yoki tahrir hech narsa oʻzgartirmasa, pul avtomatik qaytadi
 
@@ -30,7 +30,7 @@ Telegram bot: foydalanuvchi mavzu, til, rang tanlaydi (xohlasa maʼruza matni va
 
 `.env` da `MOCK_AI=1` qiling va `npm start` ni bosing. Bot haqiqiy AI ishlatmasdan namuna matn bilan ishlaydi, shu bilan butun oqimni (buyurtma, toʻlov, tahrir) tekshirib koʻrasiz. Tayyor boʻlgach `MOCK_AI=0` qilib, kalitni qoʻying.
 
-Qoʻshimcha: `npm test` (butun oqimni Telegramsiz tekshiradi), `npm run test:ai` (OpenRouter bilan ishlash qismini soxta server bilan tekshiradi), `npm run sample` (6 xil rang/til namunasini `out/` papkasiga chiqaradi).
+Qoʻshimcha: `npm test` (butun oqimni Telegramsiz tekshiradi), `npm run test:ai` (OpenRouter bilan ishlash qismini soxta server bilan tekshiradi), `npm run sample` (6 xil rang/til namunasini `out/` papkasiga chiqaradi). `npm run test:layouts` (barcha slayd turlarini 3 til va 6 rangda yigʻib tekshiradi).
 
 **Haqiqiy AI bilan birinchi sinov:** `MOCK_AI=0` qilib botni ishga tushiring, Telegramda oʻzingiz balans toʻldiring (`/qosh` bilan oʻzingizga pul qoʻshish mumkin) va 8 slaydli kichik taqdimot buyurting. Matn oʻzbekchada yaxshi chiqayotganini, adabiyotlarda toqqa chiqarilgan manbalar yoʻqligini koʻzdan kechiring.
 
@@ -71,6 +71,8 @@ Bot oʻchib-yonib turishi uchun pm2 kerak. **`data/` papkasini muntazam zaxirala
 - Narxlar, karta: `.env`
 - Matn uslubi va "insoniy" yozish qoidalari: `src/ai.js` (`STYLE_RULES`)
 - Ranglar: `src/deck.js` (`PALETTES`), slayd koʻrinishi ham shu faylda
+- Yangi slayd turi qoʻshish: `src/deck.js` da chizish funksiyasi + `LAYOUTS` + `DRAW` + `normalizeDeck` dagi zaxira qoida, `src/ai.js` dagi `LAYOUT_GUIDE`; keyin `npm run test:layouts`.
+- Rasmlar hozircha yoʻq (slaydlar rasmsiz, vektor shakllar bilan). Rasm qoʻshish uchun alohida rasm manbai (AI rasm yoki stok) kerak.
 
 ## Muhim eslatmalar
 

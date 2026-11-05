@@ -11,12 +11,10 @@ const KEEP_AT_ENDS = new Set(['agenda', 'conclusion', 'references']);
 /** Slaydlar soni so'ralganidan ko'p bo'lsa, o'rtadagi ortiqcha slaydlarni olib tashlaydi. */
 function trimToTarget(deck, target) {
   while (deck.slides.length > target) {
-    let idx = -1;
-    for (let i = deck.slides.length - 1; i >= 0; i--) {
-      if (!KEEP_AT_ENDS.has(deck.slides[i].layout)) {
-        idx = i;
-        break;
-      }
+    // avval faqat bezak vazifasini bajaradigan boʻlim sarlavhalari olib tashlanadi
+    let idx = deck.slides.findIndex((sl) => sl.layout === 'section');
+    for (let i = deck.slides.length - 1; idx < 0 && i >= 0; i--) {
+      if (!KEEP_AT_ENDS.has(deck.slides[i].layout)) idx = i;
     }
     if (idx < 0) break;
     deck.slides.splice(idx, 1);
