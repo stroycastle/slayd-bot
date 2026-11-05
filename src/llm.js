@@ -99,7 +99,7 @@ function markDead(k, status) {
   );
 }
 
-async function attempt(k, body) {
+async function attempt(k, body, fast) {
   let lastErr;
   for (let n = 1; n <= MAX_TRIES; n++) {
     const ctrl = new AbortController();
@@ -137,7 +137,7 @@ async function attempt(k, body) {
       // kalitga oid xatolar: boshqa kalitga oʻtamiz (bitta kalit boʻlsa, 429 da kutib qayta uriniladi)
       e.rotate = e.status === 401 || e.status === 402 || e.status === 403 || (e.status === 429 && pool.length > 1);
       if (e.retry === undefined) e.retry = e.status === 429 || e.status >= 500;
-      if (e.rotate) e.retry = false;
+      if (e.rotate || fast) e.retry = false;
       lastErr = e;
       if (!e.retry || n === MAX_TRIES) throw e;
       await sleep(RETRY_MS * n);
@@ -148,7 +148,7 @@ async function attempt(k, body) {
   throw lastErr;
 }
 
-async function post(body) {
+async function post(body, fast) {
   if (!pool.length) throw new Error('OpenRouter kaliti yoʻq (.env da OPENROUTER_API_KEY yoki OPENROUTER_API_KEYS)');
   // ishlayotganlar birinchi; hammasi ishlamayotgan boʻlsa ham hammasini sinab koʻramiz (pul tashlangan boʻlishi mumkin)
   const order = pool.filter(isLive).concat(pool.filter((k) => !isLive(k)));
@@ -156,7 +156,7 @@ async function post(body) {
   for (const k of order) {
     const wasDead = !isLive(k);
     try {
-      const json = await attempt(k, body);
+      const json = await attempt(k, body, fast);
       if (wasDead) {
         k.deadUntil = 0;
         k.status = 0;
@@ -223,9 +223,9 @@ function parseChoice(json, tool) {
   return { err: 'AI kutilgan javobni qaytarmadi' };
 }
 
-async function viaOpenRouter(system, user, tool, maxTokens) {
+async function runModel(model, system, user, tool, maxTokens, fast) {
   const base = {
-    model: config.OPENROUTER_MODEL,
+    model,
     // OpenRouter hisobda max_tokens ga yetarli pul borligini oldindan talab qiladi, shuning uchun keraksiz katta qoʻymaymiz
     max_tokens: maxTokens,
     messages: [
@@ -241,7 +241,7 @@ async function viaOpenRouter(system, user, tool, maxTokens) {
       ...base,
       tools: [{ type: 'function', function: { name: tool.name, description: tool.description, parameters: tool.input_schema } }],
       tool_choice: { type: 'function', function: { name: tool.name } },
-    });
+    }, fast);
     const r = parseChoice(json, tool);
     if (r.value) return r.value;
     if (/uzun/.test(r.err)) throw new Error(r.err);
@@ -266,16 +266,38 @@ async function viaOpenRouter(system, user, tool, maxTokens) {
       { role: 'user', content: user },
     ],
     response_format: { type: 'json_object' },
-  }).catch((e) => {
+  }, fast).catch((e) => {
     // ba'zi modellar response_format ni qabul qilmaydi: usiz yana bir urinish
     if (e.status === 400 || e.status === 404 || e.status === 422) {
-      return post({ ...base, messages: [{ role: 'system', content: system + `\n\nReply with ONE JSON object only that matches this JSON Schema:\n${schema}` }, { role: 'user', content: user }] });
+      return post({ ...base, messages: [{ role: 'system', content: system + `\n\nReply with ONE JSON object only that matches this JSON Schema:\n${schema}` }, { role: 'user', content: user }] }, fast);
     }
     throw e;
   });
   const r = parseChoice(json, tool);
   if (r.value) return r.value;
   throw new Error(toolsRejected ? `${r.err} (model tool chaqiruvini ham, JSON rejimini ham bajarmadi)` : r.err);
+}
+
+/** Modellar zanjiri: asosiy model + zaxiralar. Asosiysi band (429), xato yoki tushunarsiz javob bersa, keyingisiga oʻtadi.
+ *  Kalit/hisob xatolari (401/402/403) modelga bogʻliq emas, ular darrov chiqadi. */
+async function viaOpenRouter(system, user, tool, maxTokens) {
+  const models = [config.OPENROUTER_MODEL, ...config.OPENROUTER_FALLBACK_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
+  const errors = [];
+  let last;
+  for (let i = 0; i < models.length; i++) {
+    try {
+      // oxirgi modeldan boshqalarida qayta urinib turmaymiz: tezroq keyingisiga oʻtamiz
+      return await runModel(models[i], system, user, tool, maxTokens, i < models.length - 1);
+    } catch (e) {
+      last = e;
+      if (models.length === 1 || e.status === 401 || e.status === 402 || e.status === 403) throw e;
+      errors.push(`${models[i]}: ${String(e.message).slice(0, 140)}`);
+      console.warn(`Model ${models[i]} ishlamadi, keyingisiga oʻtyapman: ${String(e.message).slice(0, 160)}`);
+    }
+  }
+  const err = new Error(`Barcha modellar ishlamadi (${models.length} ta). ${errors.join(' | ')}`.slice(0, 600));
+  err.status = last && last.status;
+  throw err;
 }
 
 // ---------------------------------------------------------------- umumiy
@@ -326,7 +348,7 @@ async function keyLines(k) {
 async function accountInfo() {
   if (config.MOCK_AI) return 'AI: sinov rejimi (MOCK_AI=1), haqiqiy AI ishlatilmayapti.';
   if (config.AI_PROVIDER !== 'openrouter') return `AI: Claude (Anthropic)\nModel: ${config.ANTHROPIC_MODEL}\nQoldiqni console.anthropic.com → Billing da koʻring.`;
-  const out = [`AI: OpenRouter (${pool.length} ta kalit)`, `Model: ${config.OPENROUTER_MODEL}`, ''];
+  const out = [`AI: OpenRouter (${pool.length} ta kalit)`, `Model: ${config.OPENROUTER_MODEL}` + (config.OPENROUTER_FALLBACK_MODELS.length ? `\nZaxira modellar: ${config.OPENROUTER_FALLBACK_MODELS.join(', ')}` : ''), ''];
   const parts = await Promise.all(pool.map(keyLines));
   parts.forEach((p) => out.push(...p));
   return out.join('\n');

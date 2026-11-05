@@ -31,6 +31,8 @@ module.exports = {
   OPENROUTER_API_KEY: OPENROUTER_API_KEYS[0] || '',
   OPENROUTER_API_KEYS,
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-5.5',
+  // Zaxira modellar (vergul bilan): asosiy model band yoki ishlamasa, shular navbat bilan sinab koʻriladi
+  OPENROUTER_FALLBACK_MODELS: String(process.env.OPENROUTER_FALLBACK_MODELS || '').split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean),
   OPENROUTER_BASE_URL: (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, ''),
   AI_MAX_TOKENS: num(process.env.AI_MAX_TOKENS, 32000), // yuqori chegara; har soʻrovga kerakli miqdor alohida hisoblanadi
   // MOCK_AI=1 bo'lsa API kalitsiz, tayyor namuna matn bilan ishlaydi (sinash uchun)

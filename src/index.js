@@ -14,7 +14,7 @@ if (!config.MOCK_AI) {
   if (!config.AI_PROVIDER) fail('AI kaliti topilmadi. .env ga OPENROUTER_API_KEY (yoki ANTHROPIC_API_KEY) yozing. Kalitsiz sinash uchun MOCK_AI=1.');
   if (config.AI_PROVIDER === 'openrouter' && !config.OPENROUTER_API_KEYS.length) fail('AI_PROVIDER=openrouter, lekin OPENROUTER_API_KEY boʻsh.');
   if (config.AI_PROVIDER === 'anthropic' && !config.ANTHROPIC_API_KEY) fail('AI_PROVIDER=anthropic, lekin ANTHROPIC_API_KEY boʻsh.');
-  console.log(`🤖 AI: ${config.AI_PROVIDER === 'openrouter' ? `OpenRouter (${config.OPENROUTER_API_KEYS.length} ta kalit), model ` + config.OPENROUTER_MODEL : 'Claude (Anthropic), model ' + config.ANTHROPIC_MODEL}`);
+  console.log(`🤖 AI: ${config.AI_PROVIDER === 'openrouter' ? `OpenRouter (${config.OPENROUTER_API_KEYS.length} ta kalit), model ` + config.OPENROUTER_MODEL + (config.OPENROUTER_FALLBACK_MODELS.length ? ` (zaxira: ${config.OPENROUTER_FALLBACK_MODELS.join(', ')})` : '') : 'Claude (Anthropic), model ' + config.ANTHROPIC_MODEL}`);
 }
 if (!config.ADMIN_IDS.length) console.warn('⚠️  ADMIN_IDS boʻsh: toʻlovlarni tasdiqlovchi admin yoʻq. Botga /id yozib ID ingizni bilib oling.');
 if (config.MOCK_AI) console.warn('⚠️  MOCK_AI=1: bot sinov rejimida, haqiqiy AI ishlatilmayapti.');

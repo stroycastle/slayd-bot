@@ -313,6 +313,53 @@ server.listen(0, '127.0.0.1', async () => {
   llm.setKeys([FAKE_KEY]);
   llm.onKeyEvent(null);
 
+  // ---- zaxira modellar
+  await step('asosiy model band (429) boʻlsa darrov zaxira modelga oʻtadi (kutmasdan)', async () => {
+    config.OPENROUTER_FALLBACK_MODELS = ['test/model-2', 'test/model-3'];
+    queue.push({ status: 429, body: { error: { message: 'temporarily rate-limited upstream' } } });
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    const t0 = Date.now();
+    const deck = await ai.generateDeck(params);
+    assert.strictEqual(deck.slides.length, 4);
+    assert.deepStrictEqual(seen.map((x) => x.body.model), ['test/model-1', 'test/model-2']);
+    assert.ok(Date.now() - t0 < 1000, 'qayta urinish kutishi boʻlmasligi kerak');
+  });
+
+  await step('model tushunarsiz javob bersa ham keyingi modelga oʻtadi', async () => {
+    queue.push(textReply('Kechirasiz, bajara olmayman.'));
+    queue.push(textReply('Yana kechirasiz.')); // asosiy modelning JSON zaxira urinishi
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    const deck = await ai.generateDeck(params);
+    assert.strictEqual(deck.slides.length, 4);
+    assert.strictEqual(seen[seen.length - 1].body.model, 'test/model-2');
+  });
+
+  await step('kalit/hisob xatosi (402) modelni almashtirmaydi, darrov chiqadi', async () => {
+    queue.push({ status: 402, body: { error: { message: 'Insufficient credits' } } });
+    await assert.rejects(ai.generateDeck(params), (e) => /402/.test(e.message));
+    assert.strictEqual(seen.length, 1);
+  });
+
+  await step('hamma model ishlamasa: aniq xabar; oxirgi modelda odatdagi qayta urinishlar bor', async () => {
+    queue.push({ status: 429, body: { error: { message: 'busy 1' } } });
+    queue.push({ status: 429, body: { error: { message: 'busy 2' } } });
+    queue.push({ status: 429, body: { error: { message: 'busy 3a' } } });
+    queue.push({ status: 429, body: { error: { message: 'busy 3b' } } });
+    queue.push({ status: 429, body: { error: { message: 'busy 3c' } } });
+    await assert.rejects(ai.generateDeck(params), (e) => /Barcha modellar ishlamadi \(3 ta\)/.test(e.message) && /test\/model-1/.test(e.message) && /test\/model-3/.test(e.message) && e.status === 429);
+    assert.deepStrictEqual(seen.map((x) => x.body.model), ['test/model-1', 'test/model-2', 'test/model-3', 'test/model-3', 'test/model-3']);
+  });
+
+  await step('/ai zaxira modellarni koʻrsatadi', async () => {
+    const llm2 = require('../src/llm');
+    routes['/key'] = { status: 200, body: { data: { limit: null, usage: 0, is_free_tier: true } } };
+    routes['/credits'] = { status: 403, body: { error: { message: 'x' } } };
+    const t = await llm2.accountInfo();
+    assert.ok(/Zaxira modellar: test\/model-2, test\/model-3/.test(t), t);
+  });
+
+  config.OPENROUTER_FALLBACK_MODELS = [];
+
   await step('provayder tanlash: Anthropic kaliti boʻlsa u ustun, AI_PROVIDER bilan majburlash mumkin', async () => {
     const pick = (env) => {
       const { execFileSync } = require('child_process');
