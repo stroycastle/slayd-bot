@@ -3,6 +3,9 @@
 const http = require('http');
 const assert = require('assert');
 
+// Bu test faqat AI soʻrovlarini sanaydi: jonli qidiruv (research.js) oʻchirib qoʻyiladi, u alohida test-research.js da tekshiriladi.
+process.env.WEB_RESEARCH = '0';
+
 const FAKE_KEY = 'sk-or-v1-TESTKEY1234567890';
 let queue = []; // har bir POST so'roviga navbat bilan javob
 let seen = []; // kelgan so'rovlar

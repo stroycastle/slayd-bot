@@ -9,7 +9,8 @@
     "test": "node scripts/test-flow.js",
     "test:ai": "node scripts/test-openrouter.js",
     "test:webhook": "node scripts/test-webhook.js",
-    "test:layouts": "node scripts/test-layouts.js"
+    "test:layouts": "node scripts/test-layouts.js",
+    "test:research": "node scripts/test-research.js"
   },
   "keywords": [],
   "author": "",

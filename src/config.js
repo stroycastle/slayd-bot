@@ -38,6 +38,14 @@ module.exports = {
   // MOCK_AI=1 bo'lsa API kalitsiz, tayyor namuna matn bilan ishlaydi (sinash uchun)
   MOCK_AI: process.env.MOCK_AI === '1',
 
+  // Yangi maʼlumot: AI oʻz xotirasiga (2024-yilgacha) emas, mavzu boʻyicha hozir topilgan manbalarga tayansin.
+  // WEB_RESEARCH=0 qilinsa oʻchadi. TAVILY_API_KEY (tavily.com, oyiga 1000 ta bepul qidiruv) boʻlsa shu ishlatiladi, boʻlmasa Vikipediya.
+  WEB_RESEARCH: process.env.WEB_RESEARCH !== '0',
+  TAVILY_API_KEY: (process.env.TAVILY_API_KEY || '').trim(),
+  TAVILY_URL: process.env.TAVILY_URL || 'https://api.tavily.com/search',
+  WIKI_API_URL: process.env.WIKI_API_URL || 'https://{lang}.wikipedia.org/w/api.php', // {lang} oʻrniga til kodi qoʻyiladi
+  RESEARCH_TIMEOUT_MS: num(process.env.RESEARCH_TIMEOUT_MS, 8000),
+
   ADMIN_IDS: (process.env.ADMIN_IDS || '')
     .split(',')
     .map((s) => s.trim())
