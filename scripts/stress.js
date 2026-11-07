@@ -1,11 +1,12 @@
 // Chegaradagi eng uzun matn bilan sinov: matn qutilarga sig'ishini tekshirish uchun.
-// Ishga tushirish: node scripts/stress.js uz|uzc|ru
+// Ishga tushirish: node scripts/stress.js uz|uzc|ru [uslub] [chiqish.pptx]
 const fs = require('fs');
 const path = require('path');
 const { buildDeck, normalizeDeck } = require('../src/deck');
 const { toCyr } = require('../src/ai');
 
 const lang = process.argv[2] || 'uz';
+const style = process.argv[3] || undefined;
 const BASE = {
   uz: 'Til tizimi tovush, soʻz va qoidalardan iborat boʻlib, ular bir-biri bilan chambarchas bogʻliq holda ishlaydi va nutqda namoyon boʻladi. ',
   uzc: toCyr('Til tizimi tovush, soʻz va qoidalardan iborat boʻlib, ular bir-biri bilan chambarchas bogʻliq holda ishlaydi va nutqda namoyon boʻladi. '),
@@ -59,10 +60,11 @@ const raw = {
   const deck = normalizeDeck(raw);
   const buf = await buildDeck(deck, {
     color: 'blue',
+    style,
     lang,
     profile: { fullName: 'Nuriddinova Farangiz', group: '2606', university: 'OʻzDJTU', faculty: 'Xitoy filologiyasi' },
   });
-  const out = path.join(__dirname, '..', 'out', `stress_${lang}.pptx`);
+  const out = process.argv[4] || path.join(__dirname, '..', 'out', `stress_${lang}.pptx`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, buf);
   console.log('yozildi:', out, deck.slides.length + 1, 'slayd');

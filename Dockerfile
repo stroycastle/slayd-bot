@@ -11,6 +11,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY src ./src
+COPY assets ./assets
 
 # Maʼlumot (balans, buyurtmalar) /data da saqlanadi: pullik rejada shu yoʻlga disk ulanadi
 ENV NODE_ENV=production \

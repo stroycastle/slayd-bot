@@ -53,6 +53,7 @@ async function waitFor(fn, ms = 90000, what = '') {
 }
 const texts = (chat) => calls.filter((c) => c.method === 'sendMessage' && c.data.chat_id === chat).map((c) => c.data.text);
 const lastText = (chat) => texts(chat).slice(-1)[0] || '';
+const lastMarkup = (chat) => (calls.filter((c) => c.method === 'sendMessage' && c.data.chat_id === chat).slice(-1)[0] || { data: {} }).data.reply_markup;
 const docsTo = (chat) => calls.filter((c) => c.method === 'sendDocument' && c.data.chat_id === chat);
 let step = 0;
 const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
@@ -73,6 +74,9 @@ const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
   await send(cb(USER, 'slides:8'));
   await send(cb(USER, 'lang:uzc'));
   await send(cb(USER, 'color:purple'));
+  assert(lastText(USER).includes('Qaysi koʻrinishda'), 'koʻrinish tanlash soʻraldi');
+  assert(JSON.stringify(lastMarkup(USER)).includes('style:random'), 'tasodifiy tugmasi bor');
+  await send(cb(USER, 'style:akademik'));
   await send(msg(USER, 'Maruza matnining birinchi qismi. '.repeat(10)));
   await send(doc(USER, 'lecture.txt'));
   await sleep(1500);
@@ -83,7 +87,7 @@ const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
   for (const t of ['Nuriddinova Farangiz', '2606', 'OʻzDJTU', 'Xitoy filologiyasi']) await send(msg(USER, t));
   const confirm = lastText(USER);
   assert(confirm.includes('Buyurtmani tekshiring') && confirm.includes('5 000') && !confirm.includes('40 000'), 'tasdiqlash oynasi va bir xil narx (5000)');
-  assert(confirm.includes('Ўзбекча') && confirm.includes('Binafsha') && confirm.includes('bor ('), 'tanlovlar');
+  assert(confirm.includes('Ўзбекча') && confirm.includes('Binafsha') && confirm.includes('Akademik') && confirm.includes('bor ('), 'tanlovlar');
   assert(store.getUser(USER).profile.fullName === 'Nuriddinova Farangiz', 'titul saqlandi');
   ok('Mavzu, slayd soni, til, rang, matn+fayl, adabiyot, titul oqimi ishladi (bir xil narx 5 000 soʻm)');
 
@@ -122,15 +126,24 @@ const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
   ok(`Taqdimot tayyorlandi va yuborildi (${files.map((f) => f.data.document.filename).join(', ')})`);
   const order1 = store.userOrders(USER, 1)[0];
   assert(order1 && order1.status === 'done' && order1.deck.slides.length === 7, 'buyurtma saqlandi (8 slayd = titul + 7)');
+  assert.strictEqual(order1.style, 'akademik', 'tanlangan koʻrinish buyurtmada saqlandi');
   fs.writeFileSync(path.join(__dirname, '..', 'out', 'test_flow_natija.pptx'), files[0].data.document.source);
 
-  // 6. tahrir: pul yetarli, 3000
+  // 6. tahrir: pul yetarli, 3000 (koʻrinish oʻzgarmaydi)
+  const realEdit = service.editDeck;
+  let editStyle;
+  service.editDeck = async (p) => {
+    editStyle = p.style;
+    return realEdit(p);
+  };
   await send(msg(USER, '✏️ Tahrirlash'));
   await send(cb(USER, 'edit:pick:' + order1.id));
   await send(msg(USER, '3-slaydga ikkita gap qoʻshing'));
   assert.strictEqual(store.getUser(USER).balance, 92000, 'tahrir 3000 soʻm (95000 - 3000)');
   await waitFor(() => texts(USER).some((t) => t.startsWith('✅ Sinov rejimi')), 60000, 'tahrir tayyor');
   assert(docsTo(USER).length >= 2, 'tahrirdan keyin yangi fayl yuborildi');
+  assert.strictEqual(editStyle, 'akademik', 'tahrirda koʻrinish saqlanib qoladi');
+  service.editDeck = realEdit;
   assert(JSON.stringify(store.getOrder(order1.id).deck.slides[1]).includes('tahrir qoʻshildi'), 'tahrir buyurtmada saqlandi');
   ok('Tahrir 3 000 soʻm, yangi fayl keldi, oʻzgarish saqlandi');
 
@@ -153,6 +166,7 @@ const ok = (name) => console.log(`  ✓ ${++step}. ${name}`);
   await send(cb(USER, 'slides:8'));
   await send(cb(USER, 'lang:uz'));
   await send(cb(USER, 'color:green'));
+  await send(cb(USER, 'style:random'));
   await send(cb(USER, 'lec:skip'));
   await send(cb(USER, 'ref:skip'));
   const b2 = store.getUser(USER).balance;

@@ -22,8 +22,8 @@ function trimToTarget(deck, target) {
   return deck;
 }
 
-async function render(deck, { color, lang, profile }) {
-  const pptx = await buildDeck(deck, { color, lang, profile });
+async function render(deck, { color, style, lang, profile }) {
+  const pptx = await buildDeck(deck, { color, style, lang, profile });
   fs.mkdirSync(config.TMP_DIR, { recursive: true });
   const dir = fs.mkdtempSync(path.join(config.TMP_DIR, 'job-'));
   let pdf = null;
@@ -44,14 +44,14 @@ async function render(deck, { color, lang, profile }) {
   return { pptx, pdf };
 }
 
-/** params: { topic, slides, lang, color, lecture, references, profile } */
+/** params: { topic, slides, lang, color, style, lecture, references, profile } */
 async function createDeck(params) {
   const deck = trimToTarget(await ai.generateDeck(params), params.slides - 1);
   const files = await render(deck, params);
   return { deck, finalSlides: deck.slides.length + 1, ...files };
 }
 
-/** params: { deck, instruction, lang, color, profile } */
+/** params: { deck, instruction, lang, color, style, profile } */
 async function editDeck(params) {
   const res = await ai.editDeck({ deck: params.deck, instruction: params.instruction, lang: params.lang });
   if (!res.changed) return { ...res, pptx: null, pdf: null };

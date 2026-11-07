@@ -3,7 +3,9 @@ const { Telegraf, Markup } = require('telegraf');
 const config = require('./config');
 const llm = require('./llm');
 const service = require('./service');
-const { PALETTES } = require('./deck');
+const path = require('path');
+const fs = require('fs');
+const { PALETTES, STYLES, STYLE_KEYS, styleOf, randomStyle } = require('./deck');
 const { extractText, clip } = require('./extract');
 
 const BTN_NEW = '📊 Yangi taqdimot';
@@ -82,7 +84,7 @@ function createBot({ store, download }) {
     `Salom! Men talabalar uchun taqdimot (slayd) yasab beraman.\n\n` +
     `${priceLine()}\n` +
     `• Slaydni tahrirlash (oʻzgartirish, gap qoʻshish) — <b>${fmt(config.PRICE_EDIT)}</b>\n\n` +
-    `Tilni (oʻzbek lotin/kirill, rus) va rangni oʻzingiz tanlaysiz. Maʼruza matni va adabiyotlaringiz boʻlsa, yuborasiz, men shulardan foydalanaman. ` +
+    `Tilni (oʻzbek lotin/kirill, rus), rangni va 20 xil koʻrinishdan birini oʻzingiz tanlaysiz. Maʼruza matni va adabiyotlaringiz boʻlsa, yuborasiz, men shulardan foydalanaman. ` +
     `Natija .pptx va PDF koʻrinishida keladi.\n\nBoshlash uchun «${BTN_NEW}» tugmasini bosing.`;
 
   bot.start((ctx) => {
@@ -105,7 +107,7 @@ function createBot({ store, download }) {
   bot.hears(BTN_HELP, (ctx) =>
     ctx.reply(
       `<b>Narxlar</b>\n${priceLine()}\n• Tahrir: ${fmt(config.PRICE_EDIT)}\n\n` +
-        `<b>Qanday ishlaydi</b>\n1. Balansni toʻldirasiz (kartaga oʻtkazib, chekni yuborasiz).\n2. «${BTN_NEW}» — mavzu, slaydlar soni, til, rang, maʼruza matni.\n3. Taqdimot tayyor boʻlgach .pptx va PDF keladi.\n4. Oʻzgartirish kerak boʻlsa «${BTN_EDIT}».\n\n` +
+        `<b>Qanday ishlaydi</b>\n1. Balansni toʻldirasiz (kartaga oʻtkazib, chekni yuborasiz).\n2. «${BTN_NEW}» — mavzu, slaydlar soni, til, rang, koʻrinish (20 xil), maʼruza matni.\n3. Taqdimot tayyor boʻlgach .pptx va PDF keladi.\n4. Oʻzgartirish kerak boʻlsa «${BTN_EDIT}».\n\n` +
         `<b>Muhim</b>\nMatnni AI yozadi. Topshirishdan oldin oʻqib chiqing, faktlar va adabiyotlar roʻyxatini tekshiring, kerak boʻlsa oʻz soʻzingiz bilan moslang.`,
       HTML
     )
@@ -138,6 +140,31 @@ function createBot({ store, download }) {
   const askColor = (ctx) => {
     const btns = Object.entries(PALETTES).map(([k, p]) => Markup.button.callback(`${COLOR_ICON[k]} ${p.label}`, `color:${k}`));
     return ctx.reply('Qaysi rangda boʻlsin?', Markup.inlineKeyboard([btns.slice(0, 3), btns.slice(3), [Markup.button.callback('❌ Bekor qilish', 'cancel')]]));
+  };
+
+  // Uslub tanlash: rangga mos tayyor rasm (assets/previews/<rang>.jpg) bor boʻlsa shu bilan, boʻlmasa oddiy matn bilan
+  const previewFile = (color) => {
+    const f = path.join(__dirname, '..', 'assets', 'previews', `${color}.jpg`);
+    return fs.existsSync(f) ? f : null;
+  };
+  const askStyle = async (ctx, color) => {
+    const nums = STYLES.map((s, i) => Markup.button.callback(String(i + 1), `style:${s.key}`));
+    const kb = Markup.inlineKeyboard([
+      ...[0, 5, 10, 15].map((i) => nums.slice(i, i + 5)),
+      [Markup.button.callback('🎲 Tasodifiy', 'style:random')],
+      [Markup.button.callback('❌ Bekor qilish', 'cancel')],
+    ]);
+    const caption = `Qaysi koʻrinishda boʻlsin? Raqamni tanlang yoki «Tasodifiy»ni bosing.\n\n${STYLES.map((s, i) => `${i + 1}. ${s.name}`).join('\n')}`;
+    const file = previewFile(color);
+    if (file) {
+      try {
+        // rasm tagiga uzun roʻyxat sigʻmasligi uchun: rasm + alohida xabar tugmalar bilan
+        await ctx.replyWithPhoto({ source: file }, { caption: 'Koʻrinishlar (raqam bilan)' });
+      } catch (e) {
+        console.warn('Uslub rasmi yuborilmadi:', String(e.message || e).slice(0, 120));
+      }
+    }
+    return ctx.reply(caption, kb);
   };
 
   const doneKb = (prefix) =>
@@ -193,6 +220,7 @@ function createBot({ store, download }) {
       `Slaydlar: ${d.slides}\n` +
       `Til: ${LANGS[d.lang]}\n` +
       `Rang: ${PALETTES[d.color].label}\n` +
+      `Koʻrinish: ${styleOf(d.style).name}\n` +
       `Maʼruza matni: ${d.lecture ? `bor (${d.lecture.length} belgi)` : 'yoʻq'}\n` +
       `Adabiyotlar: ${d.references ? 'sizniki' : 'avtomatik'}\n` +
       `Titul: ${esc([p.fullName, p.group, p.university, p.faculty].filter(Boolean).join(', '))}\n\n` +
@@ -231,6 +259,16 @@ function createBot({ store, download }) {
     const st = states.get(ctx.from.id);
     if (!st || st.step !== 'color' || !PALETTES[ctx.match[1]]) return;
     st.data.color = ctx.match[1];
+    setState(ctx.from.id, 'style');
+    return askStyle(ctx, st.data.color);
+  });
+  bot.action(/^style:(\w+)$/, async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    const st = states.get(ctx.from.id);
+    if (!st || st.step !== 'style') return;
+    const key = ctx.match[1] === 'random' ? randomStyle() : ctx.match[1];
+    if (!STYLE_KEYS.includes(key)) return;
+    st.data.style = key;
     st.data.lecture = '';
     setState(ctx.from.id, 'lecture');
     return askLecture(ctx);
@@ -291,7 +329,7 @@ function createBot({ store, download }) {
         }
       );
     }
-    const order = store.addOrder({ userId: id, type: 'deck', topic: d.topic, slides: d.slides, lang: d.lang, color: d.color, price, hasLecture: !!d.lecture });
+    const order = store.addOrder({ userId: id, type: 'deck', topic: d.topic, slides: d.slides, lang: d.lang, color: d.color, style: d.style, price, hasLecture: !!d.lecture });
     clearState(id);
     drafts.delete(id);
     await ctx.reply(`⏳ Taqdimot tayyorlanmoqda (buyurtma #${order.id}). Odatda 1–3 daqiqa ketadi. Tayyor boʻlgach shu yerga yuboraman.`, menu);
@@ -318,7 +356,7 @@ function createBot({ store, download }) {
     try {
       const profile = (store.getUser(userId) || {}).profile || {};
       const res = await withTyping(chatId, () =>
-        service.createDeck({ topic: d.topic, slides: d.slides, lang: d.lang, color: d.color, lecture: d.lecture, references: d.references, profile })
+        service.createDeck({ topic: d.topic, slides: d.slides, lang: d.lang, color: d.color, style: d.style, lecture: d.lecture, references: d.references, profile })
       );
       // kamroq slayd chiqsa, farqi qaytariladi
       let refund = 0;
@@ -375,7 +413,7 @@ function createBot({ store, download }) {
     try {
       const profile = (store.getUser(userId) || {}).profile || {};
       const res = await withTyping(chatId, () =>
-        service.editDeck({ deck: parent.deck, instruction, lang: parent.lang, color: parent.color, profile })
+        service.editDeck({ deck: parent.deck, instruction, lang: parent.lang, color: parent.color, style: parent.style, profile })
       );
       if (!res.changed) {
         store.updateOrder(edit.id, { status: 'failed', error: 'oʻzgarish yoʻq' });
