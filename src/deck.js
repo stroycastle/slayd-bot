@@ -17,12 +17,14 @@ const LABELS = {
   uz: { work: 'Mustaqil ish', by: 'Bajardi', group: 'Guruh', uni: 'Universitet', fac: 'Fakultet' },
   uzc: { work: 'Мустақил иш', by: 'Бажарди', group: 'Гуруҳ', uni: 'Университет', fac: 'Факультет' },
   ru: { work: 'Самостоятельная работа', by: 'Выполнил(а)', group: 'Группа', uni: 'Университет', fac: 'Факультет' },
+  kaa: { work: 'Óz betinshe jumıs', by: 'Orınladı', group: 'Topar', uni: 'Universitet', fac: 'Fakultet' },
 };
 
 const DEFAULT_TITLES = {
   uz: { agenda: 'Reja', conclusion: 'Xulosa', references: 'Foydalanilgan adabiyotlar' },
   uzc: { agenda: 'Режа', conclusion: 'Хулоса', references: 'Фойдаланилган адабиётлар' },
   ru: { agenda: 'План', conclusion: 'Заключение', references: 'Список литературы' },
+  kaa: { agenda: 'Reje', conclusion: 'Juwmaq', references: 'Paydalanılǵan ádebiyatlar' },
 };
 
 const LAYOUTS = [

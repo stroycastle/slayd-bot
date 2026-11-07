@@ -49,7 +49,7 @@ const layoutOf = (slide) => (norm(slide) || {}).layout;
   ok('boʻlim sarlavhasi: sarlavha boʻlmasa izohdan olinadi, hech narsa boʻlmasa tashlanadi');
 
   // 4. barcha turlar 3 til x 6 rangda yigʻiladi va slaydlar soni toʻgʻri
-  for (const lang of ['uz', 'uzc', 'ru']) {
+  for (const lang of ['uz', 'uzc', 'ru', 'kaa']) {
     const deck = await generateDeck({ topic: 'Sinov', slides: 20, lang });
     const used = new Set(deck.slides.map((s) => s.layout));
     for (const l of LAYOUTS) assert.ok(used.has(l), `${lang}: ${l} namunada yoʻq`);
@@ -60,7 +60,7 @@ const layoutOf = (slide) => (norm(slide) || {}).layout;
       assert.strictEqual(count, deck.slides.length + 1, `${lang}/${color} slaydlar soni`);
     }
   }
-  ok('barcha 18 tur 3 til x 6 rangda xatosiz yigʻiladi');
+  ok('barcha 18 tur 4 til x 6 rangda xatosiz yigʻiladi');
 
   // 5. yuqori chegaradagi uzun matn ham yigʻiladi
   const long = 'Til tizimi tovush, soʻz va qoidalardan iborat boʻlib, ular bir-biri bilan bogʻliq. '.repeat(8);
@@ -92,7 +92,7 @@ const layoutOf = (slide) => (norm(slide) || {}).layout;
   assert.strictEqual(new Set(STYLE_KEYS).size, 20);
   const slideXml = async (buf, k) => (await JSZip.loadAsync(buf)).file(`ppt/slides/slide${k}.xml`).async('string');
   const fingerprints = new Map();
-  for (const lang of ['uz', 'uzc', 'ru']) {
+  for (const lang of ['uz', 'uzc', 'ru', 'kaa']) {
     const deck = await generateDeck({ topic: 'Sinov', slides: 20, lang });
     for (const style of STYLE_KEYS) {
       for (const color of ['green', 'gray']) {
@@ -104,7 +104,7 @@ const layoutOf = (slide) => (norm(slide) || {}).layout;
       if (lang === 'uz') fingerprints.set(style, (await slideXml(await buildDeck(deck, { color: 'green', lang, style }), 1)) + (await slideXml(await buildDeck(deck, { color: 'green', lang, style }), 4)));
     }
   }
-  ok('20 koʻrinish x 3 til x 2 rang: barcha slaydlar xatosiz yigʻiladi');
+  ok('20 koʻrinish x 4 til x 2 rang: barcha slaydlar xatosiz yigʻiladi');
 
   // 8. koʻrinishlar bir-biridan haqiqatan farq qiladi (titul + oddiy slayd)
   assert.strictEqual(new Set(fingerprints.values()).size, 20, 'ikkita koʻrinish bir xil chiqdi');

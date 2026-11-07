@@ -95,6 +95,12 @@ const ok = (msg) => console.log(`  ✓ ${++n}. ${msg}`);
   assert.ok(state.log.some((l) => l.path === '/wiki/ru' && l.q === 'Население Узбекистана'));
   ok('rus tilida rus Vikipediyasi qidiriladi');
 
+  // 3b. qoraqalpoq tili: qoraqalpoq Vikipediyasi (kaa)
+  state.log.length = 0;
+  await research({ topic: 'Qaraqalpaqstan', lang: 'kaa' });
+  assert.ok(state.log.some((l) => l.path === '/wiki/kaa' && l.q === 'Qaraqalpaqstan'));
+  ok('qoraqalpoq tilida qoraqalpoq Vikipediyasi (kaa) qidiriladi');
+
   // 4. soʻrovlarni tuzish ishlamasa ham manba olinadi
   state.planFails = true;
   state.log.length = 0;
@@ -146,6 +152,8 @@ const ok = (msg) => console.log(`  ✓ ${++n}. ${msg}`);
   assert.ok(deckCall.system.includes('name its year'));
   assert.ok(deckCall.system.includes('<fresh_sources> holds pages fetched today'));
   assert.ok(deckCall.system.includes(`murojaat sanasi: ${today().dmy}`));
+  const kaaCall = (await ai.generateDeck({ topic: 'Qaraqalpaqstan', slides: 8, lang: 'kaa' }), calls.filter((c) => c.tool === 'submit_deck').slice(-1)[0]);
+  assert.ok(kaaCall.system.includes('Karakalpak') && kaaCall.system.includes('kiriw sánesi'), 'qoraqalpoq tili qoidasi promptda');
   assert.ok(deckCall.user.includes('<fresh_sources retrieved='));
   ok('taqdimot promptiga sana, yil qoidasi va yangi manbalar qoʻshiladi');
 

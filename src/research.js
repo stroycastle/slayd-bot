@@ -133,7 +133,7 @@ async function run(topic, lang) {
   } catch (e) {
     console.warn('Qidiruv soʻrovlarini tuzib boʻlmadi, mavzu oʻzi ishlatiladi:', String(e.message || e).slice(0, 120));
   }
-  const own = lang === 'ru' ? 'ru' : 'uz';
+  const own = lang === 'ru' ? 'ru' : lang === 'kaa' ? 'kaa' : 'uz'; // mavzuning oʻz tilidagi Vikipediya
   let hits = [];
   let provider = 'wikipedia';
   if (config.TAVILY_API_KEY) {

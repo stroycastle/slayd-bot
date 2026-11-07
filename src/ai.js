@@ -8,6 +8,7 @@ const LANG_RULES = {
   uz: 'Uzbek, Latin script, official orthography: write oʻ and gʻ with the letter ʻ (U+02BB) and the tutuq belgisi with ʼ (U+02BC), e.g. maʼno, qoʻshimcha, gʻoya, oʻqituvchi. Never use the ASCII apostrophe or the typographic quotes ‘ ’ for these.',
   uzc: 'Uzbek, Cyrillic script (standard Uzbek Cyrillic with the letters ў қ ғ ҳ). No Latin letters except in proper names that are normally written in Latin.',
   ru: 'Russian, natural academic Russian at student level.',
+  kaa: 'Karakalpak (qaraqalpaq tili), Latin script, the current official Karakalpak Latin alphabet: a b d e f g ǵ h x ı i j k q l m n ń o ó p r s t u ú v w y z, plus á, í and the digraphs sh, ch. Write ǵ, ń, ó, ú, á, ı, í exactly with these characters (never g\', n\', o\', u\' or plain g/n/o/u in their place). This is Karakalpak, not Uzbek and not Kazakh: use standard literary Karakalpak words and grammar (for example Ǵárezsiz, ádebiyat, juwmaq, tiykarǵı, bolıp tabıladı). If you are unsure of a Karakalpak term, use the common textbook form or explain it simply; do not fill gaps with Uzbek words.',
 };
 
 const LAYOUT_GUIDE = `Layouts and limits (strict; anything longer than the limit is cut off):
@@ -43,7 +44,7 @@ Facts:
 - References: if the user supplied a reference list, use exactly those entries (only tidy the formatting). Otherwise list only well-known books or articles you are certain exist (author, title, place, year). If you know fewer than three for the topic, list fewer instead of guessing.`;
 
 // Model xotirasi eskirgan boʻlishi mumkin: bugungi sanani aytamiz va raqamning yilini yozishni talab qilamiz.
-const ACCESSED = { uz: 'murojaat sanasi', uzc: 'мурожаат санаси', ru: 'дата обращения' };
+const ACCESSED = { uz: 'murojaat sanasi', uzc: 'мурожаат санаси', ru: 'дата обращения', kaa: 'kiriw sánesi' };
 function recencyRules(t, lang, hasSources) {
   return `Dates and recent data (this matters):
 - Today's date is ${t.iso}. Your own knowledge may end well before today, so figures you remember (population, prices, rankings, statistics, laws, who holds an office) may be out of date.
@@ -303,6 +304,10 @@ function deepCyr(v) {
 async function mockDeck({ topic, slides, lang }) {
   await sleep(1200);
   let base = lang === 'ru' ? MOCK_RU : MOCK_UZ;
+  if (lang === 'kaa') {
+    // sinov rejimi: matn oʻzbekcha qoladi, faqat sarlavha yorliqlari qoraqalpoqcha
+    base = Object.assign({}, MOCK_UZ, { labels: { agenda: 'Reje', concl: 'Juwmaq', refs: 'Paydalanılǵan ádebiyatlar' } });
+  }
   if (lang === 'uzc') {
     base = deepCyr(Object.assign({}, MOCK_UZ));
     base.labels = { agenda: 'Режа', concl: 'Хулоса', refs: 'Фойдаланилган адабиётлар' };

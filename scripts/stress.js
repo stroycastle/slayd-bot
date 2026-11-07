@@ -1,5 +1,5 @@
 // Chegaradagi eng uzun matn bilan sinov: matn qutilarga sig'ishini tekshirish uchun.
-// Ishga tushirish: node scripts/stress.js uz|uzc|ru [uslub] [chiqish.pptx]
+// Ishga tushirish: node scripts/stress.js uz|uzc|ru|kaa [uslub] [chiqish.pptx]
 const fs = require('fs');
 const path = require('path');
 const { buildDeck, normalizeDeck } = require('../src/deck');
@@ -10,6 +10,7 @@ const style = process.argv[3] || undefined;
 const BASE = {
   uz: 'Til tizimi tovush, soʻz va qoidalardan iborat boʻlib, ular bir-biri bilan chambarchas bogʻliq holda ishlaydi va nutqda namoyon boʻladi. ',
   uzc: toCyr('Til tizimi tovush, soʻz va qoidalardan iborat boʻlib, ular bir-biri bilan chambarchas bogʻliq holda ishlaydi va nutqda namoyon boʻladi. '),
+  kaa: 'Til sisteması dawıslar, sózler hám qaǵıydalardan ibarat bolıp, olar bir-biri menen tıǵız baylanısqan halda isleydi hám sóylewde kórinedi. ',
   ru: 'Языковая система состоит из звуков, слов и правил, которые тесно связаны между собой и проявляются в живой речи говорящих людей. ',
 }[lang];
 

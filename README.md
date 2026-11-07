@@ -3,7 +3,7 @@
 Telegram bot: foydalanuvchi mavzu, til, rang va 20 xil koʻrinishdan birini tanlaydi (xohlasa maʼruza matni va adabiyotlarini yuboradi), bot AI yordamida slaydlarni yozib, tayyor **.pptx** va **PDF** qaytaradi.
 
 - Taqdimot: **5 000 soʻm** (8 ta ham, 30 ta ham bir xil narx), tahrir: **3 000 soʻm** (`.env` dagi `PRICE_DECK`, `PRICE_EDIT` dan oʻzgartiriladi; `PRICE_DECK=0` boʻlsa slayd boshiga `PRICE_SLIDE` olinadi)
-- Tillar: oʻzbek (lotin), oʻzbek (kirill), rus
+- Tillar: oʻzbek (lotin), oʻzbek (kirill), rus, qoraqalpoq (lotin). Qoraqalpoq tilida AI matnini tilni biladigan odam albatta koʻrib chiqsin
 - 6 ta rang x **20 xil koʻrinish** (shrift, fon, karta shakli, sarlavha, bezak, titul slaydi har xil: Klassik, Minimal, Zamonaviy, Tungi, Gazeta, Kompaniya, Texno, Yumshoq, Geometrik, Akademik, Jasur, Nafis, Yarim tun, Pastel, Blok, Jurnal, Oyna, Retro, Rasmiy, Tabiat yoki «Tasodifiy»), **18 xil slayd turi**: reja, taʼrif, kartalar, ikki ustun, jadval, jarayon, asosiy fikr, qatorlar, xulosa, adabiyotlar va yangilari: vaqt chizigʻi, markaziy tushuncha (hub), piramida, aylanma jarayon, taqqoslash (VS), katta raqamlar, rangli panel + izohlar, boʻlim sarlavhasi (16+ slaydli taqdimotlarda). AI mavzuga mosini oʻzi tanlaydi. Har slaydga nutq matni (speaker notes) ham yoziladi
 - Toʻlov: foydalanuvchi **balansni toʻldiradi** (kartaga oʻtkazib chek yuboradi), siz botda ✅ bosib tasdiqlaysiz
 - Xatolik boʻlsa yoki tahrir hech narsa oʻzgartirmasa, pul avtomatik qaytadi
@@ -31,7 +31,7 @@ Telegram bot: foydalanuvchi mavzu, til, rang va 20 xil koʻrinishdan birini tanl
 
 `.env` da `MOCK_AI=1` qiling va `npm start` ni bosing. Bot haqiqiy AI ishlatmasdan namuna matn bilan ishlaydi, shu bilan butun oqimni (buyurtma, toʻlov, tahrir) tekshirib koʻrasiz. Tayyor boʻlgach `MOCK_AI=0` qilib, kalitni qoʻying.
 
-Qoʻshimcha: `npm test` (butun oqimni Telegramsiz tekshiradi), `npm run test:ai` (OpenRouter bilan ishlash qismini soxta server bilan tekshiradi), `npm run sample` (6 xil rang/til namunasini `out/` papkasiga chiqaradi). `npm run test:layouts` (barcha slayd turlarini 3 til va 6 rangda yigʻib tekshiradi). `npm run test:research` (sana va yangi manba qismini soxta serverlar bilan tekshiradi). `node scripts/make-previews.js` (koʻrinish tanlash rasmlarini `assets/previews/` ga qayta yasaydi; LibreOffice, pdftoppm va Pillow kerak; koʻrinishlar oʻzgargandagina).
+Qoʻshimcha: `npm test` (butun oqimni Telegramsiz tekshiradi), `npm run test:ai` (OpenRouter bilan ishlash qismini soxta server bilan tekshiradi), `npm run sample` (6 xil rang/til namunasini `out/` papkasiga chiqaradi). `npm run test:layouts` (barcha slayd turlarini 4 til va 6 rangda yigʻib tekshiradi). `npm run test:research` (sana va yangi manba qismini soxta serverlar bilan tekshiradi). `node scripts/make-previews.js` (koʻrinish tanlash rasmlarini `assets/previews/` ga qayta yasaydi; LibreOffice, pdftoppm va Pillow kerak; koʻrinishlar oʻzgargandagina).
 
 **Haqiqiy AI bilan birinchi sinov:** `MOCK_AI=0` qilib botni ishga tushiring, Telegramda oʻzingiz balans toʻldiring (`/qosh` bilan oʻzingizga pul qoʻshish mumkin) va 8 slaydli kichik taqdimot buyurting. Matn oʻzbekchada yaxshi chiqayotganini, adabiyotlarda toqqa chiqarilgan manbalar yoʻqligini koʻzdan kechiring.
 

@@ -17,6 +17,7 @@ const LANGS = {
   uz: 'Oʻzbekcha (lotin)',
   uzc: 'Ўзбекча (кирилл)',
   ru: 'Русский',
+  kaa: 'Qoraqalpoqcha (lotin)',
 };
 const COLOR_ICON = { green: '🟩', blue: '🟦', red: '🟥', purple: '🟪', orange: '🟧', gray: '⬛' };
 
@@ -246,7 +247,7 @@ function createBot({ store, download }) {
     setState(ctx.from.id, 'lang');
     return askLang(ctx);
   });
-  bot.action(/^lang:(uz|uzc|ru)$/, async (ctx) => {
+  bot.action(/^lang:(uz|uzc|ru|kaa)$/, async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
     const st = states.get(ctx.from.id);
     if (!st || st.step !== 'lang') return;
