@@ -22,6 +22,18 @@ function trimToTarget(deck, target) {
   return deck;
 }
 
+/**
+ * Buyurtmadagidan kam slayd chiqsa qaytariladigan pul (bot ham, mini ilova ham shuni ishlatadi).
+ * Bir xil narxda faqat sezilarli kamlikda (3 va undan ortiq slayd), 100 soʻmgacha yaxlitlanadi; hech qachon toʻlangandan koʻp emas.
+ */
+function shortfallRefund(order, finalSlides) {
+  const missing = order.slides - finalSlides;
+  if (missing <= 0) return 0;
+  if (!(config.PRICE_DECK > 0)) return Math.min(order.price, missing * config.PRICE_SLIDE);
+  if (missing < 3) return 0;
+  return Math.min(order.price, Math.round((order.price * missing) / order.slides / 100) * 100);
+}
+
 async function render(deck, { color, style, lang, profile }) {
   const pptx = await buildDeck(deck, { color, style, lang, profile });
   fs.mkdirSync(config.TMP_DIR, { recursive: true });
@@ -64,4 +76,4 @@ function fileBase(topic) {
   return t || 'Taqdimot';
 }
 
-module.exports = { createDeck, editDeck, fileBase, trimToTarget };
+module.exports = { createDeck, editDeck, fileBase, trimToTarget, render, shortfallRefund };

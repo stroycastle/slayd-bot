@@ -2,6 +2,8 @@ const config = require('./config');
 const { Store } = require('./store');
 const { createBot, fmt } = require('./bot');
 const { createServer, hooks } = require('./server');
+const { createWebHandler, createWebServer } = require('./web');
+const { createBackend } = require('./supabase');
 
 function fail(msg) {
   console.error('\n❌ ' + msg + '\n');
@@ -19,17 +21,38 @@ if (!config.MOCK_AI) {
 if (!config.ADMIN_IDS.length) console.warn('⚠️  ADMIN_IDS boʻsh: toʻlovlarni tasdiqlovchi admin yoʻq. Botga /id yozib ID ingizni bilib oling.');
 if (config.MOCK_AI) console.warn('⚠️  MOCK_AI=1: bot sinov rejimida, haqiqiy AI ishlatilmayapti.');
 if (config.DISABLE_PDF) console.warn('ℹ️  DISABLE_PDF=1: faqat .pptx yuboriladi.');
+if (config.DEV_AUTH && config.WEBHOOK_URL) fail('DEV_AUTH=1 hostingda yoqilmasin: u mini ilovaga parolsiz kirishga ruxsat beradi. Uni oʻchiring.');
 
-const store = new Store(config.DATA_DIR);
+let backend = null;
+try {
+  backend = createBackend(config);
+} catch (e) {
+  fail(e.message);
+}
+if (backend) console.log('🗄️  Ombor: Supabase (balans, profil, buyurtmalar restartda yoʻqolmaydi).');
+else console.warn(`ℹ️  Ombor: fayl (${config.DATA_DIR}). Hostingda disk vaqtinchalik boʻlsa, restartda balanslar oʻchadi: SUPABASE_URL va SUPABASE_SERVICE_KEY bering.`);
+
+const store = new Store(config.DATA_DIR, { backend });
 const bot = createBot({ store });
+const webOn = config.WEBAPP && (config.WEBHOOK_URL || config.WEB_PORT);
+const webHandler = webOn ? createWebHandler({ store, bot }) : null;
 
 let server = null;
 
+let webServer = null;
+
 (async () => {
+  // Maʼlumotlar oʻqilmasdan hech narsa ishga tushmaydi: boʻsh ombor bilan ishlasak, balanslar ustiga yozib yuborilishi mumkin
+  try {
+    await store.init();
+  } catch (e) {
+    fail(hide(e.message));
+  }
+
   // Hosting portni tezda band qilishni kutadi, shuning uchun server eng birinchi ishga tushadi
   if (config.WEBHOOK_URL) {
     const { path } = hooks(config.BOT_TOKEN);
-    server = createServer(bot, hooks(config.BOT_TOKEN));
+    server = createServer(bot, hooks(config.BOT_TOKEN), webHandler);
     await new Promise((resolve, reject) => {
       server.once('error', reject);
       server.listen(config.PORT, '0.0.0.0', resolve);
@@ -52,6 +75,22 @@ let server = null;
     ])
     .catch(() => {});
 
+  // Mini App: menyudagi «Ilova» tugmasi (Telegram faqat https manzilni qabul qiladi)
+  if (webOn && /^https:\/\//.test(config.WEBAPP_URL)) {
+    await bot.telegram
+      .setChatMenuButton({ menuButton: { type: 'web_app', text: 'Ilova', web_app: { url: config.WEBAPP_URL } } })
+      .then(() => console.log(`📱 Mini App: ${config.WEBAPP_URL}`))
+      .catch((e) => console.warn('Menyu tugmasi oʻrnatilmadi:', hide(e.message)));
+  } else if (webOn) {
+    console.warn('⚠️  Mini App uchun ochiq https manzil kerak (WEBAPP_URL). Telegram http manzilni qabul qilmaydi.');
+  }
+
+  // polling rejimida (kompyuterda) Mini App uchun alohida server
+  if (webOn && !config.WEBHOOK_URL) {
+    webServer = createWebServer({ store, bot });
+    webServer.listen(config.WEB_PORT, () => console.log(`🌐 Mini App serveri: port ${config.WEB_PORT}`));
+  }
+
   if (config.WEBHOOK_URL) {
     try {
       bot.botInfo = await bot.telegram.getMe();
@@ -72,15 +111,25 @@ let server = null;
   }
 })();
 
-function shutdown(sig) {
-  if (server) {
-    server.close();
-    process.exit(0);
+// Oʻchirishdan oldin yozilmay qolgan oʻzgarishlar omborga yoziladi (Render SIGTERM yuboradi va bir oz kutadi)
+let closing = false;
+async function shutdown(sig) {
+  if (closing) return;
+  closing = true;
+  const done = () => process.exit(0);
+  setTimeout(done, 8000).unref();
+  try {
+    await store.flush();
+  } catch (_) {
+    /* ignore */
   }
+  if (server) server.close();
+  if (webServer) webServer.close();
+  if (server) return done();
   try {
     bot.stop(sig);
   } catch (_) {
-    process.exit(0);
+    done();
   }
 }
 process.once('SIGINT', () => shutdown('SIGINT'));

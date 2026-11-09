@@ -1,5 +1,6 @@
 // Webhook rejimi uchun kichik HTTP server: Telegram yangilanishlarini qabul qiladi va botga uzatadi.
 // Hosting (Render va h.k.) shu serverga "sogʻlom" tekshiruvi (GET /healthz) yuboradi.
+// Mini App (src/web.js) berilsa, qolgan hamma soʻrovlar (sahifa, /api/*) unga uzatiladi.
 const http = require('http');
 const crypto = require('crypto');
 
@@ -11,7 +12,7 @@ function hooks(token) {
   return { path: '/tg/' + h.slice(0, 24), secret: h.slice(24, 56) };
 }
 
-function createServer(bot, { path, secret }) {
+function createServer(bot, { path, secret }, web) {
   return http.createServer((req, res) => {
     const url = String(req.url || '').split('?')[0];
     const reply = (code, text) => {
@@ -19,7 +20,10 @@ function createServer(bot, { path, secret }) {
       res.end(text);
     };
 
-    if ((req.method === 'GET' || req.method === 'HEAD') && (url === '/' || url === '/healthz')) return reply(200, 'ok');
+    const isRead = req.method === 'GET' || req.method === 'HEAD';
+    if (isRead && url === '/healthz') return reply(200, 'ok');
+    if (web && !(req.method === 'POST' && url === path)) return web(req, res);
+    if (isRead && url === '/') return reply(200, 'ok');
     if (req.method !== 'POST' || url !== path) return reply(404, 'not found');
     if (req.headers['x-telegram-bot-api-secret-token'] !== secret) return reply(403, 'forbidden');
 

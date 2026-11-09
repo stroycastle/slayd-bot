@@ -74,6 +74,20 @@ module.exports = {
   WEBHOOK_URL: String(process.env.WEBHOOK_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, ''),
   PORT: num(process.env.PORT, 3000),
 
+  // Mini App (veb-ilova). Webhook rejimida bot serveri uni oʻzi xizmat qiladi, manzil Renderniki (WEBAPP_URL berish shart emas).
+  // WEBAPP=0 qilinsa oʻchadi. Kompyuterda (polling) sinash uchun WEB_PORT bering va ochiq HTTPS manzilni (tunnel) WEBAPP_URL ga yozing.
+  WEBAPP: process.env.WEBAPP !== '0',
+  WEBAPP_URL: String(process.env.WEBAPP_URL || process.env.WEBHOOK_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, ''),
+  WEB_PORT: num(process.env.WEB_PORT, 0),
+  // faqat mahalliy sinash uchun: DEV_AUTH=1 boʻlsa, x-dev-user sarlavhasi bilan kirish mumkin. Hostingda ishga tushmaydi.
+  DEV_AUTH: process.env.DEV_AUTH === '1',
+  MAX_EXTRACT_BYTES: num(process.env.MAX_EXTRACT_BYTES, 4 * 1024 * 1024), // mini ilovadan yuklanadigan fayl (txt, docx, pdf)
+
+  // Doimiy ombor (Supabase). Ikkalasi berilsa, balans/profil/buyurtmalar Supabaseda saqlanadi va restartda yoʻqolmaydi.
+  // Kalit — SERVER kaliti (service_role yoki sb_secret_...), anon/publishable emas.
+  SUPABASE_URL: String(process.env.SUPABASE_URL || '').trim(),
+  SUPABASE_SERVICE_KEY: String(process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SECRET_KEY || '').trim(),
+
   DATA_DIR: path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', 'data')),
   TMP_DIR: path.resolve(process.env.TMP_DIR || path.join(__dirname, '..', 'tmp')),
 

@@ -10,7 +10,11 @@
     "test:ai": "node scripts/test-openrouter.js",
     "test:webhook": "node scripts/test-webhook.js",
     "test:layouts": "node scripts/test-layouts.js",
-    "test:research": "node scripts/test-research.js"
+    "test:research": "node scripts/test-research.js",
+    "test:web": "node scripts/test-web.js",
+    "test:store": "node scripts/test-store.js",
+    "test:ui": "node scripts/test-ui.js",
+    "test:qq": "node scripts/test-qq.js"
   },
   "keywords": [],
   "author": "",
@@ -26,5 +30,8 @@
   "private": true,
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.0"
   }
 }

@@ -72,14 +72,7 @@ function createBot({ store, download }) {
     flat
       ? `• Taqdimot (${config.MIN_SLIDES}–${config.MAX_SLIDES} slayd, narxi bir xil) — <b>${fmt(config.PRICE_DECK)}</b>`
       : `• 1 ta slayd — <b>${fmt(config.PRICE_SLIDE)}</b>`;
-  // Buyurtmadagidan kam slayd chiqsa qaytariladigan pul. Bir xil narxda faqat sezilarli kamlikda (3 va undan ortiq slayd), 100 soʻmgacha yaxlitlanadi.
-  const shortfallRefund = (order, finalSlides) => {
-    const missing = order.slides - finalSlides;
-    if (missing <= 0) return 0;
-    if (!flat) return missing * config.PRICE_SLIDE;
-    if (missing < 3) return 0;
-    return Math.min(order.price, Math.round((order.price * missing) / order.slides / 100) * 100);
-  };
+  const shortfallRefund = service.shortfallRefund; // kam slayd chiqsa qaytariladigan pul (mini ilova bilan umumiy)
 
   const welcome = () =>
     `Salom! Men talabalar uchun taqdimot (slayd) yasab beraman.\n\n` +
@@ -116,7 +109,7 @@ function createBot({ store, download }) {
 
   // ------------------------------------------------------------ yangi taqdimot
   bot.hears(BTN_NEW, (ctx) => {
-    if (busy.has(ctx.from.id)) return ctx.reply('Avvalgi taqdimotingiz hali tayyorlanmoqda. Biroz kuting.');
+    if (busy.has(ctx.from.id) || store.hasProcessing(ctx.from.id)) return ctx.reply('Avvalgi taqdimotingiz hali tayyorlanmoqda. Biroz kuting.');
     setState(ctx.from.id, 'topic', {});
     return ctx.reply('Taqdimot mavzusini yozing.\nMasalan: «Grammatik kategoriya va uning turlari»', cancelKb);
   });
@@ -315,7 +308,7 @@ function createBot({ store, download }) {
     const id = ctx.from.id;
     const d = drafts.get(id);
     if (!d) return ctx.reply('Buyurtma topilmadi. «' + BTN_NEW + '» tugmasidan boshlang.', menu);
-    if (busy.has(id)) return ctx.reply('Avvalgi taqdimotingiz hali tayyorlanmoqda.');
+    if (busy.has(id) || store.hasProcessing(id)) return ctx.reply('Avvalgi taqdimotingiz hali tayyorlanmoqda.');
     const price = config.deckPrice(d.slides);
     if (!store.charge(id, price, `Taqdimot: ${d.topic.slice(0, 40)}`)) {
       const need = price - store.getUser(id).balance;
@@ -619,7 +612,7 @@ function createBot({ store, download }) {
       case 'topup_receipt':
         return ctx.reply('Chek rasmini (skrinshot) yuboring. Bekor qilish uchun /cancel.');
       case 'edit_text': {
-        if (busy.has(id)) return ctx.reply('Avvalgi buyurtmangiz hali tayyorlanmoqda.');
+        if (busy.has(id) || store.hasProcessing(id)) return ctx.reply('Avvalgi buyurtmangiz hali tayyorlanmoqda.');
         if (text.length < 5 || text.length > 1500) return ctx.reply('Nimani oʻzgartirish kerakligini batafsilroq yozing (5–1500 belgi).');
         const parent = store.getOrder(st.data.orderId);
         if (!parent || !parent.deck) return ctx.reply('Buyurtma topilmadi.');

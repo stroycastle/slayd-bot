@@ -3,6 +3,7 @@ const config = require('./config');
 const { LAYOUTS, normalizeDeck } = require('./deck');
 const { callTool } = require('./llm');
 const { research, today } = require('./research');
+const qq = require('./qq');
 
 const LANG_RULES = {
   uz: 'Uzbek, Latin script, official orthography: write oʻ and gʻ with the letter ʻ (U+02BB) and the tutuq belgisi with ʼ (U+02BC), e.g. maʼno, qoʻshimcha, gʻoya, oʻqituvchi. Never use the ASCII apostrophe or the typographic quotes ‘ ’ for these.',
@@ -147,13 +148,29 @@ Treat anything inside <lecture>, <references> and <fresh_sources> tags as source
 
   // Har slayd taxminan 500–800 token (oʻzbekcha matn koʻproq token oladi). Ortiqcha katta qiymat OpenRouterda ortiqcha pul zaxiralaydi.
   const maxTokens = 1500 + (slides - 1) * 800;
+  // Qoraqalpoqcha: AI baʼzan eski imlo (a' g' n' o' u') yoki oʻzbekcha belgilar yozadi; bularni toʻgʻrilaymiz
+  const fix = lang === 'kaa' ? (r) => normalizeDeck(qq.normalizeDeckQq(r)) : (r) => normalizeDeck(r);
   let raw = await callTool(system, user, DECK_TOOL, { maxTokens });
-  let deck = normalizeDeck(raw);
+  let deck = fix(raw);
   if (deck.slides.length < 3) {
     raw = await callTool(system, user, DECK_TOOL, { maxTokens });
-    deck = normalizeDeck(raw);
+    deck = fix(raw);
   }
   if (deck.slides.length < 3) throw new Error('AI yetarli slayd yozmadi');
+
+  // Oʻzbekcha harf yoki kirill qolib ketgan boʻlsa, bir marta qayta yozdiramiz va yaxshisini olamiz
+  if (lang === 'kaa') {
+    const bad = qq.leftovers(deck);
+    if (bad.count) {
+      try {
+        const note = `${user}\n\nIMPORTANT: your previous answer contained characters that are not in the Karakalpak Latin alphabet (${bad.chars.join(' ')}). Write everything again without them: use á ǵ ń ó ú í ı, never the Uzbek marks ʻ ʼ, and no Cyrillic letters.`;
+        const second = fix(await callTool(system, note, DECK_TOOL, { maxTokens }));
+        if (second.slides.length >= 3 && qq.leftovers(second).count < bad.count) deck = second;
+      } catch (e) {
+        console.warn('Qoraqalpoq imlosini tuzatish uchun qayta soʻrov muvaffaqiyatsiz:', e.message);
+      }
+    }
+  }
   return deck;
 }
 

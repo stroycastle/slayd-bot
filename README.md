@@ -67,6 +67,22 @@ Bot oʻchib-yonib turishi uchun pm2 kerak. **`data/` papkasini muntazam zaxirala
 - `/stat`: foydalanuvchilar, taqdimotlar, tushum. `/qosh <id> <summa>`: balansga qoʻlda pul qoʻshish.
 - Xatolik boʻlsa sizga ham xabar keladi.
 
+## 5a. Mini App (veb-ilova)
+Bot bilan bir xil serverda ishlaydi (`src/web.js`, `miniapp/`): profil, 3 bosqichli buyurtma (mavzu → til/rang/**20 xil koʻrinish** → maʼruza), tarix, balans va chek yuborish.
+- Renderda alohida sozlash shart emas: manzil `RENDER_EXTERNAL_URL`, bot menyusiga «Ilova» tugmasi oʻzi qoʻyiladi.
+- Telegram `initData` imzosi har soʻrovda tekshiriladi (`src/webauth.js`). `DEV_AUTH=1` faqat kompyuterda; hostingda bot shunda ishga tushmaydi.
+- Pul va buyurtma qoidalari botdagi bilan bir xil (`src/service.js`, `src/store.js` umumiy). Bot va ilovadan bir vaqtda ikkinchi buyurtma berib boʻlmaydi.
+- Kompyuterda: `WEB_PORT=3000`, `DEV_AUTH=1`, soʻng `http://localhost:3000/?dev=<telegram-id>`.
+- Testlar: `npm run test:web` (API), `npm run test:ui` (interfeys, jsdom).
+
+## 5b. Doimiy ombor (Supabase)
+Renderning bepul rejasida disk vaqtinchalik: restartda balanslar, profillar va tarix oʻchadi. Supabase buni hal qiladi.
+1. supabase.com → yangi loyiha. **SQL Editor** ga `docs/supabase.sql` ni qoʻyib *Run* bosing (jadval `bot_docs`, ochiq kalitdan yopilgan).
+2. **Project Settings → API Keys** dan *Project URL* va **secret** (yoki `service_role`) kalitini oling.
+3. Renderda `SUPABASE_URL` va `SUPABASE_SERVICE_KEY` qoʻshing. Boshqa hech narsa kerak emas.
+Kalit faqat serverda turadi, mini ilovaga berilmaydi. Bot yoqilganda hamma maʼlumotni oʻqiydi; oʻqiy olmasa, boʻsh ombor bilan ishga tushmaydi (balanslar ustiga yozilib ketmasligi uchun). Oʻzgarishlar darhol yoziladi, oʻchirishdan oldin ham saqlanadi.
+Sinov: `npm run test:store`. Supabase bepul loyihasi uzoq vaqt ishlatilmasa pauza boʻladi; bot har kuni ishlasa muammo yoʻq.
+
 ## 6. Moslash
 
 - Narxlar, karta: `.env`
