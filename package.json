@@ -14,7 +14,8 @@
     "test:web": "node scripts/test-web.js",
     "test:store": "node scripts/test-store.js",
     "test:ui": "node scripts/test-ui.js",
-    "test:qq": "node scripts/test-qq.js"
+    "test:qq": "node scripts/test-qq.js",
+    "test:keepalive": "node scripts/test-keepalive.js"
   },
   "keywords": [],
   "author": "",

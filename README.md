@@ -61,6 +61,12 @@ Repoda `Dockerfile` bor (Node + LibreOffice). Render uni oʻzi quradi.
 
 Bot oʻchib-yonib turishi uchun pm2 kerak. **`data/` papkasini muntazam zaxiralang**: balanslar va buyurtmalar shu yerda (`data/db.json`).
 
+### Bot uxlab qolmasligi (Render bepul rejasi)
+Render bepul rejasida xizmat 15 daqiqa **tashqaridan** HTTP soʻrov kelmasa uxlaydi, keyingi foydalanuvchi 30–60 soniya kutadi. Botning Telegramga yuborgan xabari bunga yordam bermaydi (u chiqish trafigi), shuning uchun bot har 5 daqiqada **oʻz manziliga** (`/healthz`) yengil soʻrov yuboradi (`src/keepalive.js`, `KEEP_ALIVE_MIN=5`, 0 — oʻchirish).
+- Bu faqat uygʻoq xizmatni uygʻoq saqlaydi. Agar xizmat baribir uxlab qolsa (masalan, Render qayta ishga tushirsa), uni Telegram xabari uygʻotadi. Qoʻshimcha ishonch uchun tashqi bepul kuzatuvchi (UptimeRobot, 5 daqiqalik HTTP monitor, manzil `…/healthz`) qoʻyish mumkin: u ham uygʻotadi, ham bot oʻchib qolsa xabar beradi.
+- Bepul reja oyiga 750 soat beradi (bitta xizmat 24/7 ishlasa ~720–744 soat). Shu hisobda boshqa bepul xizmat boʻlmasligi kerak.
+- Sinov: `npm run test:keepalive`.
+
 ## 5. Kundalik ish
 
 - Foydalanuvchi chek yuborsa, sizga rasm va ✅/❌ tugmalari keladi. Pulni kartangizda tekshirib, ✅ bosasiz.

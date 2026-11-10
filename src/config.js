@@ -69,6 +69,10 @@ module.exports = {
   // DISABLE_PDF=1: PDF yasalmaydi, faqat .pptx (xotirasi kichik serverlarda LibreOffice jarayonni oʻldirib qoʻymasligi uchun)
   DISABLE_PDF: process.env.DISABLE_PDF === '1',
 
+  // Uyquga qarshi: Renderning bepul rejasida xizmat 15 daqiqa soʻrovsiz tursa uxlaydi. Webhook rejimida xizmat oʻziga
+  // har KEEP_ALIVE_MIN daqiqada /healthz soʻrovini yuboradi. 0 qilinsa oʻchadi (pullik rejada kerak emas).
+  KEEP_ALIVE_MIN: num(process.env.KEEP_ALIVE_MIN, 5),
+
   // Webhook rejimi (hosting uchun). WEBHOOK_URL yoki Render bergan RENDER_EXTERNAL_URL boʻlsa yoqiladi,
   // boʻlmasa bot oddiy "polling" rejimida ishlaydi (kompyuterda).
   WEBHOOK_URL: String(process.env.WEBHOOK_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, ''),

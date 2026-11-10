@@ -4,6 +4,7 @@ const { createBot, fmt } = require('./bot');
 const { createServer, hooks } = require('./server');
 const { createWebHandler, createWebServer } = require('./web');
 const { createBackend } = require('./supabase');
+const { startKeepAlive } = require('./keepalive');
 
 function fail(msg) {
   console.error('\n❌ ' + msg + '\n');
@@ -97,6 +98,10 @@ let webServer = null;
       const { path, secret } = hooks(config.BOT_TOKEN);
       await bot.telegram.setWebhook(config.WEBHOOK_URL + path, { secret_token: secret, max_connections: 5 });
       console.log(`✅ Bot ishga tushdi (webhook): @${bot.botInfo.username}`);
+      if (config.KEEP_ALIVE_MIN > 0) {
+        startKeepAlive({ url: config.WEBHOOK_URL, everyMs: config.KEEP_ALIVE_MIN * 60 * 1000 });
+        console.log(`🏓 Uyquga qarshi: har ${config.KEEP_ALIVE_MIN} daqiqada oʻziga soʻrov yuboriladi.`);
+      }
     } catch (e) {
       fail(
         'Webhookni oʻrnatib boʻlmadi: ' + hide(e.message) + (/401|Unauthorized/i.test(e.message) ? '\nBOT_TOKEN notoʻgʻri: @BotFather dan tokenni qayta oling.' : ''),
