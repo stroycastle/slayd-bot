@@ -34,7 +34,10 @@
     me: null, cfg: null, screen: 'home', orders: [], ordersLoaded: false, payments: [], ledger: [], pay: null, topupAmount: 0, poll: null, tick: null,
     wiz: { step: 1, topic: '', slides: 12, lang: 'uz', color: 'green', style: 'random', lecture: '', references: '', fileName: '', manual: false },
     lastOrder: null,
+    // himoyaga tayyorgarlik: orderId, data (server javobi), mode: 'list' | 'practice', practice (mashq holati)
+    defense: { orderId: null, data: null, mode: 'list', practice: null },
   };
+  const LEVEL = { easy: 'Oson', medium: 'Oʻrta', hard: 'Qiyin' };
 
   // ---------- yordamchilar ----------
   const view = document.getElementById('view');
@@ -60,6 +63,9 @@
     down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
     up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
     inbox: '<path d="M4 13l2-8h12l2 8"/><path d="M4 13v6h16v-6h-5l-1 2h-4l-1-2z"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8"/><path d="M12 17h.01"/>',
+    refresh: '<path d="M4 12a8 8 0 0 1 14-5.3L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15"/><path d="M4 20v-5h5"/>',
+    chev: '<path d="M9 6l6 6-6 6"/>',
   };
   function icon(name, size = 22, sw = 1.9) {
     const s = document.createElementNS(NS, 'svg');
@@ -132,12 +138,12 @@
   }
   function render() {
     view.replaceChildren();
-    view.className = state.screen === 'wizard' || state.screen === 'success' ? 'flow' : '';
+    view.className = ['wizard', 'success', 'defense'].includes(state.screen) ? 'flow' : '';
     view.style.animation = 'none'; void view.offsetWidth; view.style.animation = '';
     document.querySelectorAll('.foot').forEach((n) => n.remove());
     renderTabs();
     if (!state.me) return;
-    ({ home: screenHome, history: screenHistory, balance: screenBalance, profile: screenProfile, wizard: screenWizard, success: screenSuccess })[state.screen]();
+    ({ home: screenHome, history: screenHistory, balance: screenBalance, profile: screenProfile, wizard: screenWizard, success: screenSuccess, defense: screenDefense })[state.screen]();
     if ((state.screen === 'home' || state.screen === 'history') && state.orders.some((o) => o.status === 'processing')) startPolling();
   }
 
@@ -200,7 +206,16 @@
         h('div', { class: 'row', style: 'align-items:flex-start;gap:8px' }, h('div', { class: 'ttl grow' }, o.topic), badge),
         h('div', { class: 'meta' }, h('span', {}, `${o.slides} slayd`), h('span', {}, LANGS[o.lang] ? LANGS[o.lang].name : o.lang), styleName(o.style) ? h('span', {}, styleName(o.style)) : null, h('span', {}, money(o.price)), h('span', {}, when(o.createdAt))),
         o.error ? h('div', { class: 'hint minus', style: 'margin-top:4px' }, o.error) : null,
-        withResend && o.status === 'done' ? h('div', { style: 'margin-top:10px' }, h('button', { class: 'btn ghost sm', onclick: (e) => resend(o.id, e.currentTarget) }, icon('send', 16), 'Chatga qayta yuborish')) : null));
+        withResend && o.status === 'done' ? h('div', { class: 'acts' },
+          h('button', { class: 'btn ghost sm', onclick: (e) => resend(o.id, e.currentTarget) }, icon('send', 16), 'Chatga qayta yuborish'),
+          h('button', { class: 'btn ghost sm', 'data-defense': o.id, onclick: () => openDefense(o.id) }, icon('shield', 16), defenseLabel(o))) : null));
+  }
+  function defenseLabel(o) {
+    const p = state.cfg.priceDefense;
+    if (o.defense === 'done') return 'Himoya savollari';
+    if (o.defense === 'processing') return 'Savollar tayyorlanmoqda…';
+    if (o.defense === 'failed') return 'Himoya: qayta urinish';
+    return 'Himoya savollari' + (p > 0 ? ` · ${money(p)}` : '');
   }
   function styleName(key) {
     const st = state.cfg && state.cfg.styles && state.cfg.styles.find((x) => x.key === key);
@@ -238,10 +253,12 @@
       box.append(h('div', { class: 'sec' }, h('h2', {}, 'Soʻnggi ishlar'), state.orders.length > 3 ? h('button', { class: 'link', onclick: () => go('history') }, 'Barchasi') : null));
       if (!recent.length && !active.length) box.append(emptyState('Hali taqdimot yoʻq', 'Birinchi taqdimotingizni yasab koʻring.'));
       else if (recent.length) box.append(h('div', { class: 'group' }, recent.map((o) => orderRow(o, false))));
-      box.append(h('div', { class: 'sec' }, h('h2', {}, 'Tez orada')),
-        h('div', { class: 'card flat teaser' }, h('div', { class: 'ico' }, icon('shield', 22)),
-          h('div', { class: 'grow' }, h('div', { style: 'font-weight:650' }, 'Himoyaga tayyorgarlik', h('span', { class: 'soon' }, 'Tez orada')),
-            h('div', { class: 'hint' }, 'Oʻqituvchi beradigan savollar va javoblar, mashq rejimi.'))));
+      const hasDone = state.orders.some((o) => o.status === 'done');
+      box.append(h('div', { class: 'sec' }, h('h2', {}, 'Qoʻshimcha')),
+        h('button', { class: 'card flat teaser live pressable', id: 'defense-card', onclick: () => (hasDone ? go('history') : toast('Avval taqdimot yasang: savollar tayyor taqdimot asosida tuziladi.')) }, h('div', { class: 'ico' }, icon('shield', 22)),
+          h('div', { class: 'grow' }, h('div', { style: 'font-weight:650' }, 'Himoyaga tayyorgarlik'),
+            h('div', { class: 'hint' }, `Oʻqituvchi beradigan savollar, javoblar va mashq rejimi${state.cfg.priceDefense > 0 ? ` · ${money(state.cfg.priceDefense)}` : ''}`)),
+          icon('chev', 20)));
     };
     draw();
     if (!state.ordersLoaded) loadOrders().then(() => { if (state.screen === 'home') { draw(); if (state.orders.some((o) => o.status === 'processing')) startPolling(); } }).catch(() => { state.ordersLoaded = true; draw(); });
@@ -412,6 +429,139 @@
         h('button', { class: 'btn line', onclick: () => go('home') }, 'Bosh sahifa'))));
   }
 
+  // ---------- Himoyaga tayyorgarlik: oʻqituvchi savollari, javoblar va mashq ----------
+  function openDefense(orderId) {
+    state.defense = { orderId, data: null, mode: 'list', practice: null, error: null };
+    go('defense');
+  }
+  function newPractice(items, only) {
+    const idx = items.map((_, i) => i).filter((i) => !only || only.includes(i));
+    for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    return { order: idx, pos: 0, shown: false, known: [], again: [] };
+  }
+
+  function screenDefense() {
+    const d = state.defense, c = state.cfg;
+    const order = state.orders.find((x) => x.id === d.orderId);
+    view.append(h('div', { class: 'flow-head' },
+      h('button', { class: 'icon-btn', 'aria-label': 'Orqaga', onclick: () => go('history') }, icon('back', 24)),
+      h('div', { class: 'grow hint', style: 'font-weight:600' }, 'Himoyaga tayyorgarlik')));
+    const box = h('div', { id: 'defense-box' });
+    view.append(box);
+    const topic = () => (order && order.topic) || (d.data && d.data.topic) || '';
+    const sync = () => { if (order && d.data && d.data.status) order.defense = d.data.status; };
+    const heading = () => box.append(h('div', { class: 'title' }, 'Himoyaga tayyorgarlik'), h('p', { class: 'sub' }, topic()));
+
+    const start = async (btn) => {
+      btn.disabled = true; btn.replaceChildren(h('span', { class: 'dot-spin' }), 'Yuborilmoqda…');
+      try {
+        await api('POST', `/api/orders/${d.orderId}/defense`);
+        haptic('success');
+        d.data = { status: 'processing', topic: topic() }; sync();
+        await refreshMe().catch(() => {});
+        draw(); poll();
+      } catch (err) {
+        haptic('error');
+        if (err.data && err.data.error === 'balance') { state.topupAmount = Math.max(c.minTopup, Math.ceil(err.data.need / 1000) * 1000); toast(`Balans yetmaydi: yana ${money(err.data.need)} kerak.`); return go('balance'); }
+        toast(err.message);
+        if (err.data && (err.data.error === 'exists' || err.data.error === 'busy')) { await init(); return; }
+        draw();
+      }
+    };
+
+    const poll = () => {
+      clearInterval(state.poll); state.poll = null;
+      if (!d.data || d.data.status !== 'processing') return;
+      state.poll = setInterval(async () => {
+        if (state.screen !== 'defense' || state.defense !== d) return clearInterval(state.poll);
+        try { d.data = await api('GET', `/api/orders/${d.orderId}/defense`); } catch (e) { return; }
+        if (d.data.status === 'processing') return;
+        clearInterval(state.poll); state.poll = null; sync();
+        if (d.data.status === 'done') { haptic('success'); toast('Savollar tayyor!'); } else { haptic('error'); toast('Xatolik chiqdi, pul qaytarildi.'); }
+        refreshMe().catch(() => {});
+        d.mode = 'list'; draw();
+      }, 3000);
+    };
+
+    const drawIntro = (failed) => {
+      const p = c.priceDefense, me = state.me, enough = me.balance >= p;
+      const feat = (ic, t, s) => h('div', { class: 'feat' }, h('span', { class: 'fi' }, icon(ic, 20)), h('div', {}, h('b', {}, t), h('div', { class: 'hint' }, s)));
+      if (failed) box.append(h('div', { class: 'card flat', style: 'border-color:var(--warn)' }, h('b', {}, 'Oldingi urinish muvaffaqiyatsiz tugadi'), h('div', { class: 'hint' }, 'Pul balansingizga qaytarilgan. Qayta urinib koʻring.')));
+      box.append(h('div', { class: 'card' },
+        feat('help', `${c.defenseQuestions} ta savol`, 'Oʻqituvchi shu taqdimotdan soʻrashi mumkin boʻlgan savollar: oddiydan qiyiniga.'),
+        feat('file', 'Tayyor javoblar', 'Har savolga 2–4 gaplik javob, ovoz chiqarib aytishga qulay.'),
+        feat('refresh', 'Mashq rejimi', 'Savol chiqadi, avval oʻzingiz javob berasiz, keyin tekshirasiz.')));
+      if (p > 0) box.append(h('div', { class: 'card sum' }, h('div', { class: 'r tot' }, h('span', {}, 'Narxi'), h('span', {}, money(p))), h('div', { class: 'r' }, h('span', {}, 'Balansingiz'), h('span', { class: enough ? '' : 'minus' }, money(me.balance)))));
+      if (p > 0 && !enough) box.append(h('div', { class: 'hint minus', style: 'margin:0 2px 10px' }, `Yana ${money(p - me.balance)} kerak.`));
+      const btn = h('button', { class: 'btn', id: 'defense-go', onclick: () => (enough ? start(btn) : (state.topupAmount = Math.max(c.minTopup, Math.ceil((p - me.balance) / 1000) * 1000), go('balance'))) },
+        enough ? [icon('spark', 20), p > 0 ? `Tayyorlash · ${money(p)}` : 'Tayyorlash'] : [icon('wallet', 20), 'Balansni toʻldirish']);
+      box.append(btn);
+    };
+
+    const drawWait = () => box.append(h('div', { class: 'progress', id: 'defense-wait' }, h('div', { class: 'row' }, h('span', { class: 'dot-spin', style: 'color:var(--brand);width:22px;height:22px;border-width:3px' }),
+      h('div', { class: 'grow' }, h('div', { style: 'font-weight:650' }, 'Savollar tayyorlanmoqda…'), h('div', { class: 'hint' }, 'Odatda 20–60 soniya. Ilovani yopsangiz ham boʻladi: tayyor boʻlgach botdan xabar keladi.')))));
+
+    const drawList = (items) => {
+      const list = h('div', { class: 'group', id: 'qa-list' }, items.map((it, i) => {
+        const row = h('div', { class: 'qa' },
+          h('button', { class: 'qa-q', 'aria-expanded': 'false', onclick: (e) => { const open = row.classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', String(open)); haptic('select'); } },
+            h('span', { class: 'qa-n' }, String(i + 1)), h('span', { class: 'grow' }, it.q), h('span', { class: 'lvl ' + it.level }, LEVEL[it.level] || ''), icon('chev', 18)),
+          h('div', { class: 'qa-a' }, it.a));
+        return row;
+      }));
+      box.append(list, h('div', { class: 'acts' }, h('button', { class: 'btn ghost sm', id: 'qa-copy', onclick: () => copy(items.map((it, i) => `${i + 1}. ${it.q}\n${it.a}`).join('\n\n')) }, icon('copy', 16), 'Hammasini nusxalash')));
+    };
+
+    const drawPractice = (items) => {
+      const pr = d.practice || (d.practice = newPractice(items));
+      if (pr.pos >= pr.order.length) {
+        const total = pr.order.length, k = pr.known.length;
+        box.append(h('div', { class: 'card result', id: 'practice-result' }, h('div', { class: 'hint' }, 'Natija'), h('div', { class: 'bignum', style: 'justify-content:center;margin:4px 0' }, h('b', {}, `${k} / ${total}`)),
+          h('div', { class: 'hint' }, pr.again.length ? `${pr.again.length} ta savolni yana takrorlash kerak.` : 'Hammasini bilasiz. Omad!')));
+        if (pr.again.length) box.append(h('button', { class: 'btn', id: 'practice-redo', style: 'margin-bottom:10px', onclick: () => { d.practice = newPractice(items, pr.again); draw(); } }, icon('refresh', 20), `Takrorlanadiganlarni mashq qilish · ${pr.again.length}`));
+        box.append(h('button', { class: 'btn line', id: 'practice-restart', onclick: () => { d.practice = newPractice(items); draw(); } }, 'Qaytadan boshlash'));
+        return;
+      }
+      const it = items[pr.order[pr.pos]];
+      box.append(h('div', { class: 'row', style: 'justify-content:space-between;margin:2px 2px 8px' }, h('span', { class: 'hint' }, `${pr.pos + 1} / ${pr.order.length}`), h('span', { class: 'lvl ' + it.level }, LEVEL[it.level] || '')),
+        h('div', { class: 'bar slim' }, h('b', { style: `width:${Math.round((100 * pr.pos) / pr.order.length)}%;animation:none` })));
+      const card = h('div', { class: 'flash card' }, h('div', { class: 'fq', id: 'practice-q' }, it.q));
+      if (pr.shown) card.append(h('div', { class: 'fa', id: 'practice-a' }, h('div', { class: 'hint', style: 'margin-bottom:4px;font-weight:700' }, 'Namunaviy javob'), it.a));
+      else card.append(h('div', { class: 'hint', style: 'margin-top:14px' }, 'Avval javobni oʻzingiz ovoz chiqarib ayting, keyin tekshiring.'));
+      box.append(card);
+      const next = (known) => { (known ? pr.known : pr.again).push(pr.order[pr.pos]); pr.pos++; pr.shown = false; haptic('select'); draw(); window.scrollTo(0, 0); };
+      if (!pr.shown) box.append(h('button', { class: 'btn', id: 'practice-show', onclick: () => { pr.shown = true; draw(); } }, 'Javobni koʻrsatish'));
+      else box.append(h('div', { class: 'two' }, h('button', { class: 'btn line', id: 'practice-again', onclick: () => next(false) }, icon('refresh', 18), 'Takrorlayman'), h('button', { class: 'btn', id: 'practice-known', onclick: () => next(true) }, icon('check', 20), 'Bilaman')));
+    };
+
+    const drawDone = () => {
+      const items = d.data.items || [];
+      heading();
+      const segBtn = (m, label) => h('button', { class: d.mode === m ? 'on' : '', role: 'tab', id: 'seg-' + m, 'aria-selected': String(d.mode === m), onclick: () => { if (d.mode === m) return; d.mode = m; haptic('select'); draw(); } }, label);
+      box.append(h('div', { class: 'seg', role: 'tablist' }, segBtn('list', `Savol-javoblar · ${items.length}`), segBtn('practice', 'Mashq')));
+      if (d.mode === 'practice') drawPractice(items); else drawList(items);
+    };
+
+    const draw = () => {
+      box.replaceChildren();
+      if (d.error) { box.append(emptyState('Ochib boʻlmadi', d.error, h('button', { class: 'btn sm', onclick: () => init() }, 'Qayta urinish'))); return; }
+      if (!d.data) { box.append(...skeletons()); return; }
+      const s = d.data.status;
+      if (s === 'done') return drawDone();
+      heading();
+      if (s === 'processing') return drawWait();
+      drawIntro(s === 'failed');
+    };
+
+    const init = async () => {
+      d.error = null; d.data = null; draw();
+      try { d.data = await api('GET', `/api/orders/${d.orderId}/defense`); sync(); } catch (e) { d.error = e.message; }
+      if (state.screen !== 'defense' || state.defense !== d) return;
+      draw(); poll();
+    };
+    draw(); init();
+  }
+
   // ---------- 4. Balans ----------
   async function loadPayments() { const j = await api('GET', '/api/payments'); state.payments = j.payments; state.ledger = j.ledger; state.me.balance = j.balance; }
   function screenBalance() {
@@ -522,6 +672,12 @@
     view.append(...skeletons());
     try {
       await refreshMe();
+      // bot xabaridagi «Ochish» tugmasi: /?d=<buyurtma raqami> — himoya savollarini toʻgʻridan-toʻgʻri ochadi
+      const dId = Number(q.get('d'));
+      if (dId && !state.me.profileMissing) {
+        try { await loadOrders(); } catch (e) { /* roʻyxatsiz ham ochiladi */ }
+        if (state.orders.some((o) => o.id === dId && o.status === 'done')) return openDefense(dId);
+      }
       go(state.me.profileMissing ? 'profile' : 'home');
     } catch (e) {
       view.replaceChildren(h('div', { class: 'empty', style: 'padding-top:90px' }, icon('inbox', 56, 1.4), h('b', {}, 'Ulanib boʻlmadi'), e.message || '', h('div', { style: 'margin-top:16px' }, h('button', { class: 'btn sm', onclick: () => location.reload() }, 'Qayta urinish'))));

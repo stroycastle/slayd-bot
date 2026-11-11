@@ -212,3 +212,33 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .lb-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 18px; font-weight: 700; border-bottom: 1px solid var(--line); background: var(--bg); }
 .lb-scroll { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; }
 .lb-scroll img { display: block; width: min(1208px, 300vw); max-width: none; height: auto; }
+
+/* ----- himoyaga tayyorgarlik ----- */
+.acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.acts .btn { flex: 1 1 100%; justify-content: center; text-align: center; }
+.teaser.live { opacity: 1; width: 100%; text-align: left; cursor: pointer; }
+.teaser.live .ico { background: var(--brand-soft); color: var(--brand); }
+.teaser.live > svg:last-child { color: var(--hint); }
+.feat { display: flex; gap: 12px; align-items: flex-start; padding: 4px 0; }
+.feat + .feat { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 12px; }
+.feat .fi { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); flex: none; }
+.feat b { font-size: 15px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: color-mix(in srgb, var(--hint) 14%, transparent); margin: 4px 0 14px; }
+.seg button { min-height: 40px; border-radius: 11px; font-weight: 650; font-size: 14.5px; color: var(--hint); transition: all .15s; }
+.seg button.on { background: var(--bg); color: var(--text); box-shadow: var(--shadow); }
+.qa-q { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 14px; font-weight: 600; font-size: 15px; line-height: 1.3; }
+.qa-q > svg:last-child { color: var(--hint); transition: transform .2s; }
+.qa.open .qa-q > svg:last-child { transform: rotate(90deg); }
+.qa-n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); font-size: 13px; font-weight: 800; flex: none; }
+.qa-a { display: none; padding: 0 14px 16px 50px; font-size: 15px; line-height: 1.5; }
+.qa.open .qa-a { display: block; }
+.lvl { font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; flex: none; }
+.lvl.easy { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.lvl.medium { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.lvl.hard { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
+.bar.slim { margin: 0 0 14px; }
+.flash { padding: 22px 18px; min-height: 180px; }
+.flash .fq { font-size: 21px; line-height: 1.3; font-weight: 750; letter-spacing: -.01em; }
+.flash .fa { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--line); font-size: 16px; line-height: 1.5; animation: rise .25s ease both; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.result { text-align: center; padding: 26px 16px; }
