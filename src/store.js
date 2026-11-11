@@ -248,7 +248,18 @@ class Store {
         fixed.push(o);
       }
     }
-    if (fixed.length) this.save();
+    // yarim qolgan himoya savol-javoblari: pul qaytariladi (qaytarilganlar roʻyxati fixed.defense da)
+    fixed.defense = [];
+    for (const o of this.db.orders) {
+      if (o.defenseStatus === 'processing') {
+        o.defenseStatus = 'failed';
+        o.defenseError = 'Bot qayta ishga tushdi';
+        this._mark('order', o.id);
+        if (o.defensePrice > 0) this.credit(o.userId, o.defensePrice, `Qaytarildi: himoya savollari #${o.id}`, 'refund');
+        fixed.defense.push(o);
+      }
+    }
+    if (fixed.length || fixed.defense.length) this.save();
     return fixed;
   }
 

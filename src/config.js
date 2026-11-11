@@ -61,6 +61,9 @@ module.exports = {
   deckPrice(slides) {
     return this.PRICE_DECK > 0 ? this.PRICE_DECK : slides * this.PRICE_SLIDE;
   },
+  // Himoyaga tayyorgarlik: tayyor taqdimot uchun oʻqituvchi savollari va javoblari (Mini App). 0 boʻlsa bepul.
+  PRICE_DEFENSE: num(process.env.PRICE_DEFENSE, 2000),
+  DEFENSE_QUESTIONS: Math.min(15, Math.max(6, num(process.env.DEFENSE_QUESTIONS, 12))),
   MIN_TOPUP: num(process.env.MIN_TOPUP, 10000),
   MIN_SLIDES: 8,
   MAX_SLIDES: 30,

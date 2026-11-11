@@ -86,6 +86,7 @@ function createWebHandler({ store, bot }) {
   const publicOrder = (o) => ({
     id: o.id, topic: o.topic, slides: o.finalSlides || o.slides, lang: toPublicLang(o.lang), color: o.color, style: o.style || null,
     status: o.status, price: o.price, createdAt: o.createdAt, error: o.status === 'failed' ? 'Xatolik, pul qaytarildi' : undefined,
+    defense: o.defenseStatus || 'none', // himoya savol-javoblari: none | processing | done | failed
   });
   const publicPayment = (p) => ({ id: p.id, amount: p.amount, status: p.status, createdAt: p.createdAt });
   const publicMe = (u) => ({ id: u.id, name: u.name, username: u.username, balance: u.balance, profile: u.profile || {}, profileMissing: profileMissing(u.profile) || null });
@@ -102,6 +103,7 @@ function createWebHandler({ store, bot }) {
         user: publicMe(store.getUser(uid)),
         config: {
           flat: config.PRICE_DECK > 0, priceDeck: config.PRICE_DECK, priceSlide: config.PRICE_SLIDE, priceEdit: config.PRICE_EDIT,
+          priceDefense: config.PRICE_DEFENSE, defenseQuestions: config.DEFENSE_QUESTIONS,
           minTopup: config.MIN_TOPUP, maxTopup: 5000000,
           minSlides: config.MIN_SLIDES, maxSlides: config.MAX_SLIDES, maxLecture: config.MAX_LECTURE_CHARS, maxExtract: config.MAX_EXTRACT_BYTES,
           langs: LANGS, colors: Object.entries(PALETTES).map(([k, v]) => ({ key: k, label: v.label, hex: v.accent, dark: v.dark, soft: v.soft, tint: v.tint })),
@@ -157,6 +159,14 @@ function createWebHandler({ store, bot }) {
       rateLimit(uid, 'send', 6, 60000);
       let r;
       try { r = await orders.resend(uid, Number(mm[1])); } catch (e) { throw new HttpError(502, 'send_failed', 'Chatga yuborib boʻlmadi. Botni bloklamaganingizni tekshiring.'); }
+      if (r.code !== 200) throw Object.assign(new HttpError(r.code, r.body.error, r.body.message), { extra: r.body });
+      return r.body;
+    }
+
+    mm = p.match(/^\/api\/orders\/(\d+)\/defense$/);
+    if (mm && (m === 'POST' || m === 'GET')) {
+      let r;
+      if (m === 'POST') { rateLimit(uid, 'defense', 10, 60000); r = orders.placeDefense(uid, Number(mm[1])); } else r = orders.defenseView(uid, Number(mm[1]));
       if (r.code !== 200) throw Object.assign(new HttpError(r.code, r.body.error, r.body.message), { extra: r.body });
       return r.body;
     }

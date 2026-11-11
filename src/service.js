@@ -71,9 +71,14 @@ async function editDeck(params) {
   return { ...res, ...files };
 }
 
+/** params: { deck, topic, lang }. Qaytaradi: [{ q, a, level }] (oʻqituvchi savollari va namunaviy javoblar) */
+async function createDefense(params) {
+  return ai.generateDefense({ deck: params.deck, topic: params.topic, lang: params.lang, count: config.DEFENSE_QUESTIONS });
+}
+
 function fileBase(topic) {
   const t = String(topic || 'Taqdimot').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50);
   return t || 'Taqdimot';
 }
 
-module.exports = { createDeck, editDeck, fileBase, trimToTarget, render, shortfallRefund };
+module.exports = { createDeck, editDeck, createDefense, fileBase, trimToTarget, render, shortfallRefund };

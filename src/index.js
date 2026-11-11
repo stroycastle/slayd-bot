@@ -68,6 +68,11 @@ let webServer = null;
       .sendMessage(o.userId, `Bot qayta ishga tushgani sababli #${o.id} buyurtma bajarilmadi. ${fmt(o.price)} balansingizga qaytarildi, qayta buyurtma bering.`)
       .catch(() => {});
   }
+  for (const o of stuck.defense || []) {
+    bot.telegram
+      .sendMessage(o.userId, `Bot qayta ishga tushgani sababli #${o.id} taqdimot uchun himoya savollari tayyorlanmadi. ${fmt(o.defensePrice)} balansingizga qaytarildi, Ilovada qayta urinib koʻring.`)
+      .catch(() => {});
+  }
   await bot.telegram
     .setMyCommands([
       { command: 'start', description: 'Boshlash' },

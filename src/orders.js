@@ -1,4 +1,5 @@
 // Mini App uchun buyurtma mantiqi. Pul va buyurtma qoidalari botdagi bilan bir xil (store va service umumiy).
+const { Markup } = require('telegraf');
 const config = require('./config');
 const service = require('./service');
 const { PALETTES, STYLE_KEYS, DEFAULT_STYLE, randomStyle } = require('./deck');
@@ -63,6 +64,7 @@ function createOrders({ store, bot }) {
         let msg = `✅ Tayyor! ${res.finalSlides} ta slayd.`;
         if (refund) msg += ` Slayd soni kamroq chiqqani uchun ${fmt(refund)} balansingizga qaytarildi.`;
         msg += `\n\nTopshirishdan oldin matn va adabiyotlar roʻyxatini oʻqib, tekshirib chiqing.\nOʻzgartirish kerak boʻlsa botdagi «✏️ Tahrirlash» tugmasi (${fmt(config.PRICE_EDIT)}).`;
+        msg += `\n\n🎓 Himoyaga tayyorlanish: Ilovadagi «Tarix» boʻlimida oʻqituvchi beradigan savollar va javoblarni olishingiz mumkin (${config.PRICE_DEFENSE > 0 ? fmt(config.PRICE_DEFENSE) : 'bepul'}).`;
         await bot.telegram.sendMessage(userId, msg);
       } catch (e) {
         // fayl yuborilmadi (masalan, bot bloklangan): buyurtma tayyor, ilovadan qayta yuborish mumkin
@@ -110,7 +112,58 @@ function createOrders({ store, bot }) {
     return { code: 200, body: { ok: true } };
   }
 
-  return { placeDeck, resend, validate };
+  // ---------- himoyaga tayyorgarlik: tayyor taqdimot boʻyicha oʻqituvchi savollari va javoblari ----------
+  async function runDefense(userId, order) {
+    const price = order.defensePrice || 0;
+    try {
+      const items = await service.createDefense({ deck: order.deck, topic: order.topic, lang: order.lang });
+      store.updateOrder(order.id, { defenseStatus: 'done', defense: { items, createdAt: Date.now() }, defenseError: '' });
+      const text = `🎓 Himoya savollari tayyor: «${order.topic.slice(0, 80)}»\n${items.length} ta savol va javob. Ilovada oching va mashq qiling.`;
+      const url = config.WEBAPP_URL;
+      const extra = /^https:\/\//.test(url) ? Markup.inlineKeyboard([[Markup.button.webApp('🎓 Ochish', `${url}/?d=${order.id}`)]]) : undefined;
+      bot.telegram.sendMessage(userId, text, extra).catch(() => {});
+    } catch (e) {
+      console.error('Himoya savollari xatosi:', e);
+      store.updateOrder(order.id, { defenseStatus: 'failed', defenseError: String(e.message || e).slice(0, 300) });
+      if (price > 0) store.refund(userId, price, `Xatolik: himoya savollari #${order.id}`);
+      bot.telegram.sendMessage(userId, `Kechirasiz, himoya savollarini tayyorlashda xatolik chiqdi.${price > 0 ? ` ${fmt(price)} balansingizga qaytarildi.` : ''} Birozdan keyin qayta urinib koʻring.`).catch(() => {});
+      notifyAdmins(`❗ Himoya savollari (buyurtma #${order.id}) xatolik: ${String(e.message || e).slice(0, 300)}`);
+    }
+  }
+
+  function ownDoneDeck(userId, orderId) {
+    const o = store.getOrder(orderId);
+    return o && o.userId === userId && o.type === 'deck' && o.status === 'done' && o.deck ? o : null;
+  }
+
+  /** Himoya savol-javoblarini buyurtma qiladi. Qaytaradi: { code, body } */
+  function placeDefense(userId, orderId) {
+    const o = ownDoneDeck(userId, orderId);
+    if (!o) return { code: 404, body: { error: 'not_found', message: 'Taqdimot topilmadi.' } };
+    if (o.defenseStatus === 'processing') return { code: 409, body: { error: 'busy', message: 'Savollar hali tayyorlanmoqda.' } };
+    if (o.defenseStatus === 'done' && o.defense) return { code: 409, body: { error: 'exists', message: 'Bu taqdimot uchun savollar allaqachon tayyor.' } };
+    const price = config.PRICE_DEFENSE;
+    if (price > 0 && !store.charge(userId, price, `Himoya savollari: ${o.topic.slice(0, 40)}`)) {
+      return { code: 402, body: { error: 'balance', need: price - store.getUser(userId).balance, message: 'Balansda mablagʻ yetarli emas.' } };
+    }
+    const upd = store.updateOrder(o.id, { defenseStatus: 'processing', defensePrice: price, defenseStartedAt: Date.now(), defenseError: '' });
+    runDefense(userId, upd); // fon rejimida
+    return { code: 200, body: { ok: true, price, balance: store.getUser(userId).balance } };
+  }
+
+  /** Himoya holati va (tayyor boʻlsa) savol-javoblar. */
+  function defenseView(userId, orderId) {
+    const o = ownDoneDeck(userId, orderId);
+    if (!o) return { code: 404, body: { error: 'not_found', message: 'Taqdimot topilmadi.' } };
+    const status = o.defenseStatus || 'none';
+    const body = { status, price: config.PRICE_DEFENSE, topic: o.topic };
+    if (status === 'done' && o.defense) { body.items = o.defense.items; body.createdAt = o.defense.createdAt; }
+    if (status === 'processing') body.startedAt = o.defenseStartedAt || null;
+    if (status === 'failed') body.error = 'Xatolik chiqdi, pul qaytarildi.';
+    return { code: 200, body };
+  }
+
+  return { placeDeck, resend, placeDefense, defenseView, validate };
 }
 
 module.exports = { createOrders, validate, profileMissing, LANGS, toPublicLang, fmt };
