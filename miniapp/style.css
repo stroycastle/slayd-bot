@@ -242,3 +242,12 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .flash .fa { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--line); font-size: 16px; line-height: 1.5; animation: rise .25s ease both; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .result { text-align: center; padding: 26px 16px; }
+
+/* ---- referal va admin paneli ---- */
+.seg.s3 { grid-template-columns: repeat(3, 1fr); }
+.seg.s4 { grid-template-columns: repeat(4, 1fr); }
+.seg.s3 button, .seg.s4 button { font-size: 13px; padding: 0 4px; }
+.stat { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; box-shadow: var(--shadow); min-width: 0; }
+.stat .v { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin: 2px 0; font-variant-numeric: tabular-nums; }
+.ref-link { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; padding: 12px 14px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); user-select: all; }
+.li.adm-user b { white-space: nowrap; }

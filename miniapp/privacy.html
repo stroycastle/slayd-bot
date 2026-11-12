@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Maxfiylik siyosati — Taqdimot boti</title>
+<style>
+  :root { --bg: #ffffff; --text: #18222d; --hint: #5d6b7a; --line: #e3e8ee; --brand: #176a8a; --soft: #eef6f9; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0e1621; --text: #eaf0f6; --hint: #93a4b6; --line: #25323f; --brand: #5cc2d9; --soft: #15222e; } }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 26px; line-height: 1.2; margin: 8px 0 4px; letter-spacing: -.01em; }
+  h2 { font-size: 18px; margin: 28px 0 8px; }
+  p, li { margin: 8px 0; }
+  ul { padding-left: 22px; }
+  a { color: var(--brand); }
+  .meta { color: var(--hint); font-size: 14px; }
+  .langs { display: flex; gap: 8px; margin: 12px 0 4px; }
+  .langs a { padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; font-weight: 600; font-size: 14px; }
+  .note { background: var(--soft); border-radius: 12px; padding: 12px 14px; margin: 16px 0; font-size: 15px; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 44px 0 8px; }
+  code { background: var(--soft); padding: 1px 6px; border-radius: 6px; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+
+<section id="uz" lang="uz">
+  <div class="langs"><a href="#uz">Oʻzbekcha</a><a href="#ru">Русский</a></div>
+  <h1>Maxfiylik siyosati</h1>
+  <div class="meta">Taqdimot boti (@Space_deckbot) va uning Mini Ilovasi · Kuchga kirgan sana: 2026-yil 12-noyabr</div>
+
+  <div class="note">Qisqacha: biz faqat xizmat ishlashi uchun kerak boʻlgan maʼlumotlarni olamiz, ularni sotmaymiz va reklama uchun ishlatmaymiz. Istalgan vaqtda maʼlumotlaringizni oʻchirishni soʻrashingiz mumkin.</div>
+
+  <h2>1. Kim javob beradi</h2>
+  <p>Xizmat egasi (operator): <b>Jalilov Mirjalol</b>. Bot — talabalar uchun sunʼiy intellekt yordamida taqdimot (.pptx va PDF) tayyorlab beradi. Savol va murojaatlar uchun botda <code>/murojaat</code> buyrugʻidan foydalaning.</p>
+
+  <h2>2. Qanday maʼlumotlarni yigʻamiz</h2>
+  <ul>
+    <li><b>Telegram maʼlumotlari:</b> Telegram ID raqamingiz, ismingiz va (boʻlsa) @username. Ularni Telegram oʻzi botga uzatadi.</li>
+    <li><b>Profil:</b> Mini Ilovada oʻzingiz kiritgan ism-familiya, guruh, universitet va fakultet. Ular taqdimotning titul varagʻiga yoziladi.</li>
+    <li><b>Buyurtmalar:</b> taqdimot mavzusi, til, rang va koʻrinish tanlovi, siz yuborgan maʼruza matni, adabiyotlar roʻyxati, yuklagan fayldan ajratib olingan matn, tahrir uchun yozgan koʻrsatmalaringiz, hamda yaratilgan taqdimot matni va himoya savol-javoblari.</li>
+    <li><b>Moliyaviy yozuvlar:</b> balansingiz, toʻlov summalari va holati (kutilmoqda / tasdiqlandi / rad etildi), balansdagi harakatlar (yechilgan, qaytarilgan, bonus). Toʻlov cheki rasmi faqat toʻlovni tekshirish uchun adminga yuboriladi; rasmning oʻzi bizning maʼlumotlar bazasida saqlanmaydi. Bank karta maʼlumotlaringizni biz soʻramaymiz va saqlamaymiz.</li>
+    <li><b>Referal:</b> sizni qaysi foydalanuvchi taklif qilgani va siz taklif qilganlar soni.</li>
+    <li><b>Texnik jurnallar:</b> server xatolari va soʻrov vaqtlari (muammolarni topish va himoya uchun).</li>
+  </ul>
+  <p>Mini Ilova cookie, reklama yoki kuzatuv (analitika) vositalaridan foydalanmaydi. Kirish Telegram bergan tasdiq (initData) orqali amalga oshadi.</p>
+
+  <h2>3. Nima uchun ishlatamiz</h2>
+  <ul>
+    <li>buyurtmangizni bajarish, fayllarni chatga yuborish va tarixni koʻrsatish;</li>
+    <li>balans, toʻlov va bonuslarni hisoblash;</li>
+    <li>xatolarni topish, xizmat sifatini va xavfsizligini taʼminlash, firibgarlikdan himoya qilish;</li>
+    <li>siz bilan murojaat orqali bogʻlanish.</li>
+  </ul>
+  <p>Maʼlumotlaringizni uchinchi shaxslarga sotmaymiz va reklama maqsadida ishlatmaymiz.</p>
+
+  <h2>4. Kimlarga uzatiladi (xizmat koʻrsatuvchilar)</h2>
+  <ul>
+    <li><b>Telegram</b> — bot va Mini Ilova ishlashi, xabar va fayllarni yetkazish.</li>
+    <li><b>Render</b> — dasturimiz joylashgan hosting; <b>Supabase</b> — maʼlumotlar bazasi. Bu xizmatlarning serverlari Oʻzbekistondan tashqarida boʻlishi mumkin.</li>
+    <li><b>AI xizmati (OpenRouter va u orqali tanlangan model provayderlari)</b> — matnni yaratish uchun taqdimot mavzusi, siz yuborgan maʼruza matni va adabiyotlar, tahrir koʻrsatmalari ularga yuboriladi. Ism-familiya, guruh, universitet va fakultetingiz AI ga yuborilmaydi: ular faqat tayyor faylning titul varagʻiga bizning serverimizda yoziladi.</li>
+    <li><b>Qidiruv (Vikipediya yoki Tavily)</b> — mavzu boʻyicha yangi maʼlumot topish uchun mavzu matni qidiruv soʻrovi sifatida yuborilishi mumkin.</li>
+  </ul>
+  <p>Shaxsiy maʼlumotlaringiz qonun talab qilgan hollarda vakolatli organlarga berilishi mumkin.</p>
+
+  <h2>5. Qancha vaqt saqlanadi</h2>
+  <p>Profil va buyurtma maʼlumotlari — siz xizmatdan foydalanayotgan davrda yoki siz oʻchirishni soʻraguningizcha. Toʻlov va balans harakatlari yozuvlari hisob-kitob va nizolarni hal qilish uchun, kerakli muddat davomida saqlanishi mumkin.</p>
+
+  <h2>6. Sizning huquqlaringiz</h2>
+  <p>Siz oʻz maʼlumotlaringiz haqida maʼlumot soʻrashingiz, ularni tuzatishni yoki oʻchirishni talab qilishingiz mumkin. Buning uchun botda <code>/murojaat</code> buyrugʻidan keyin soʻrovingizni yozing (masalan: <code>/murojaat Maʼlumotlarimni oʻchiring</code>). Soʻrov koʻrib chiqilib, javob beriladi. Oʻchirilganda profilingiz va buyurtma matnlaringiz olib tashlanadi, balansda qolgan mablagʻ haqida alohida kelishiladi.</p>
+
+  <h2>7. Xavfsizlik</h2>
+  <p>Maʼlumotlar himoyalangan (HTTPS) aloqa orqali uzatiladi, bazaga kirish maxsus kalit bilan cheklangan, admin funksiyalari faqat ruxsat berilgan Telegram ID larga ochiq. Shunga qaramay, internetda 100% himoya kafolatlanmaydi.</p>
+
+  <h2>8. Yoshga oid cheklov</h2>
+  <p>Xizmat talabalar uchun moʻljallangan. 16 yoshdan kichik shaxslar undan ota-onasi yoki vasiysi roziligisiz foydalanmasligi kerak.</p>
+
+  <h2>9. Oʻzgarishlar</h2>
+  <p>Siyosat yangilanganda shu sahifa va sana oʻzgaradi. Muhim oʻzgarishlar haqida bot orqali xabar berishimiz mumkin.</p>
+
+  <p class="meta">Bu matn umumiy axborot uchun; u yuridik maslahat emas.</p>
+</section>
+
+<hr>
+
+<section id="ru" lang="ru">
+  <div class="langs"><a href="#uz">Oʻzbekcha</a><a href="#ru">Русский</a></div>
+  <h1>Политика конфиденциальности</h1>
+  <div class="meta">Бот презентаций (@Space_deckbot) и его Mini App · Действует с 12 ноября 2026 г.</div>
+
+  <div class="note">Коротко: мы собираем только данные, необходимые для работы сервиса, не продаём их и не используем для рекламы. Вы можете в любой момент попросить удалить свои данные.</div>
+
+  <h2>1. Кто отвечает</h2>
+  <p>Владелец сервиса (оператор): <b>Jalilov Mirjalol</b>. Бот создаёт для студентов презентации (.pptx и PDF) с помощью искусственного интеллекта. По вопросам и обращениям используйте в боте команду <code>/murojaat</code>.</p>
+
+  <h2>2. Какие данные мы собираем</h2>
+  <ul>
+    <li><b>Данные Telegram:</b> ваш Telegram ID, имя и (если есть) @username. Их передаёт боту сам Telegram.</li>
+    <li><b>Профиль:</b> введённые вами в Mini App ФИО, группа, университет и факультет. Они печатаются на титульном листе презентации.</li>
+    <li><b>Заказы:</b> тема презентации, язык, цвет и стиль, присланный вами текст лекции и список литературы, текст, извлечённый из загруженного файла, ваши указания для правок, а также созданный текст презентации и вопросы и ответы для защиты.</li>
+    <li><b>Финансовые записи:</b> баланс, суммы и статус платежей (ожидает / подтверждён / отклонён), движения по балансу (списания, возвраты, бонусы). Фото чека отправляется администратору только для проверки платежа; само изображение в нашей базе не хранится. Данные вашей банковской карты мы не запрашиваем и не храним.</li>
+    <li><b>Рефералы:</b> кто вас пригласил и сколько людей пригласили вы.</li>
+    <li><b>Технические журналы:</b> ошибки сервера и время запросов (для поиска неисправностей и защиты).</li>
+  </ul>
+  <p>Mini App не использует cookie, рекламу и инструменты слежения (аналитику). Вход выполняется по подтверждению, которое выдаёт Telegram (initData).</p>
+
+  <h2>3. Для чего используем</h2>
+  <ul>
+    <li>выполнение заказа, отправка файлов в чат, показ истории;</li>
+    <li>учёт баланса, платежей и бонусов;</li>
+    <li>поиск ошибок, обеспечение качества и безопасности, защита от мошенничества;</li>
+    <li>связь с вами по вашему обращению.</li>
+  </ul>
+  <p>Мы не продаём ваши данные третьим лицам и не используем их в рекламных целях.</p>
+
+  <h2>4. Кому передаются (поставщики услуг)</h2>
+  <ul>
+    <li><b>Telegram</b> — работа бота и Mini App, доставка сообщений и файлов.</li>
+    <li><b>Render</b> — хостинг, где работает программа; <b>Supabase</b> — база данных. Серверы этих сервисов могут находиться за пределами Узбекистана.</li>
+    <li><b>ИИ-сервис (OpenRouter и выбранные через него поставщики моделей)</b> — для создания текста им передаются тема презентации, присланный вами текст лекции и литература, указания для правок. ФИО, группа, университет и факультет в ИИ не передаются: они вписываются в титульный лист готового файла на нашем сервере.</li>
+    <li><b>Поиск (Википедия или Tavily)</b> — для поиска свежих сведений текст темы может отправляться как поисковый запрос.</li>
+  </ul>
+  <p>Данные могут быть переданы уполномоченным органам, если этого требует закон.</p>
+
+  <h2>5. Сколько хранятся</h2>
+  <p>Данные профиля и заказов — пока вы пользуетесь сервисом или пока не попросите удалить. Записи о платежах и движениях по балансу могут храниться необходимый срок для учёта и разрешения споров.</p>
+
+  <h2>6. Ваши права</h2>
+  <p>Вы можете запросить сведения о своих данных, потребовать их исправления или удаления. Для этого напишите в боте команду <code>/murojaat</code> и ваш запрос (например: <code>/murojaat Удалите мои данные</code>). Запрос будет рассмотрен, вы получите ответ. При удалении профиль и тексты заказов будут стёрты; судьба остатка на балансе обсуждается отдельно.</p>
+
+  <h2>7. Безопасность</h2>
+  <p>Данные передаются по защищённому соединению (HTTPS), доступ к базе ограничен специальным ключом, функции администратора доступны только разрешённым Telegram ID. Тем не менее в интернете стопроцентная защита не гарантируется.</p>
+
+  <h2>8. Возрастное ограничение</h2>
+  <p>Сервис предназначен для студентов. Лицам младше 16 лет не следует пользоваться им без согласия родителей или опекунов.</p>
+
+  <h2>9. Изменения</h2>
+  <p>При обновлении политики изменится эта страница и дата. О существенных изменениях мы можем сообщить через бота.</p>
+
+  <p class="meta">Этот текст носит общий информационный характер и не является юридической консультацией.</p>
+</section>
+
+</main>
+</body>
+</html>

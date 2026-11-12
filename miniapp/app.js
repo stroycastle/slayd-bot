@@ -26,7 +26,8 @@
     qq: { name: 'Qaraqalpaqsha', sub: 'Lotin yozuvi · sinov bosqichida' },
   };
   const STATUS = { processing: 'Tayyorlanmoqda', done: 'Tayyor', failed: 'Xato', waiting_receipt: 'Chek kutilmoqda', pending: 'Tekshirilmoqda', approved: 'Tasdiqlandi', rejected: 'Rad etildi' };
-  const LEDGER = { topup: 'Balans toʻldirildi', charge: 'Taqdimot uchun', refund: 'Pul qaytarildi', credit: 'Balansga qoʻshildi' };
+  const LEDGER = { topup: 'Balans toʻldirildi', charge: 'Xizmat uchun', refund: 'Pul qaytarildi', credit: 'Balansga qoʻshildi', referral: 'Referal bonus', debit: 'Balansdan ayirildi' };
+  const OUT = ['charge', 'debit']; // balansdan chiqim boʻlgan harakatlar
   const SUGGEST = ['Sotsiolingvistika asoslari', 'Islomning vujudga kelishi va tarqalishi', 'Grammatik kategoriya va grammatik shakl', 'Oʻzbek tili leksikologiyasi'];
   const MAIN = ['home', 'history', 'balance', 'profile'];
 
@@ -36,6 +37,8 @@
     lastOrder: null,
     // himoyaga tayyorgarlik: orderId, data (server javobi), mode: 'list' | 'practice', practice (mashq holati)
     defense: { orderId: null, data: null, mode: 'list', practice: null },
+    // admin paneli: tab (sum | users), davr, yigʻma, foydalanuvchilar roʻyxati, tanlangan foydalanuvchi
+    admin: { tab: 'sum', period: 'today', summary: null, q: '', sort: 'recent', users: null, detail: null },
   };
   const LEVEL = { easy: 'Oson', medium: 'Oʻrta', hard: 'Qiyin' };
 
@@ -66,6 +69,9 @@
     help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8"/><path d="M12 17h.01"/>',
     refresh: '<path d="M4 12a8 8 0 0 1 14-5.3L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15"/><path d="M4 20v-5h5"/>',
     chev: '<path d="M9 6l6 6-6 6"/>',
+    gift: '<path d="M4 11h16v9H4z"/><path d="M3 7h18v4H3z"/><path d="M12 7v13"/><path d="M12 7C9.5 7 8 6 8 4.8S9.2 3 10.4 3C11.6 3 12 5.5 12 7z"/><path d="M12 7c2.5 0 4-1 4-2.2S14.8 3 13.6 3C12.4 3 12 5.5 12 7z"/>',
+    chart: '<path d="M4 20V11M10 20V4M16 20v-7M21 20H3"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.8-5 6.5-5s5.5 1.5 6.5 5"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c2.3 0 4 1.3 4.8 4"/>',
   };
   function icon(name, size = 22, sw = 1.9) {
     const s = document.createElementNS(NS, 'svg');
@@ -91,7 +97,8 @@
     }
     return el;
   }
-  const money = (n) => new Intl.NumberFormat('ru-RU').format(n || 0).replace(/\u00a0/g, ' ') + ' soʻm';
+  const nf = (n) => new Intl.NumberFormat('ru-RU').format(n || 0).replace(/[\u00a0\u202f]/g, ' ');
+  const money = (n) => nf(n) + ' soʻm';
   const when = (ts) => { const d = new Date(ts); return d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); };
   const initials = (n) => (String(n || '?').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('') || '?').toUpperCase();
   const colorOf = (key) => (state.cfg.colors.find((c) => c.key === key) || state.cfg.colors[0]);
@@ -138,12 +145,12 @@
   }
   function render() {
     view.replaceChildren();
-    view.className = ['wizard', 'success', 'defense'].includes(state.screen) ? 'flow' : '';
+    view.className = ['wizard', 'success', 'defense', 'referral', 'admin'].includes(state.screen) ? 'flow' : '';
     view.style.animation = 'none'; void view.offsetWidth; view.style.animation = '';
     document.querySelectorAll('.foot').forEach((n) => n.remove());
     renderTabs();
     if (!state.me) return;
-    ({ home: screenHome, history: screenHistory, balance: screenBalance, profile: screenProfile, wizard: screenWizard, success: screenSuccess, defense: screenDefense })[state.screen]();
+    ({ home: screenHome, history: screenHistory, balance: screenBalance, profile: screenProfile, wizard: screenWizard, success: screenSuccess, defense: screenDefense, referral: screenReferral, admin: screenAdmin })[state.screen]();
     if ((state.screen === 'home' || state.screen === 'history') && state.orders.some((o) => o.status === 'processing')) startPolling();
   }
 
@@ -259,6 +266,18 @@
           h('div', { class: 'grow' }, h('div', { style: 'font-weight:650' }, 'Himoyaga tayyorgarlik'),
             h('div', { class: 'hint' }, `Oʻqituvchi beradigan savollar, javoblar va mashq rejimi${state.cfg.priceDefense > 0 ? ` · ${money(state.cfg.priceDefense)}` : ''}`)),
           icon('chev', 20)));
+      if (state.cfg.referralPercent > 0) {
+        box.append(h('button', { class: 'card flat teaser live pressable', id: 'referral-card', onclick: () => go('referral') }, h('div', { class: 'ico' }, icon('gift', 22)),
+          h('div', { class: 'grow' }, h('div', { style: 'font-weight:650' }, 'Doʻst taklif qiling'),
+            h('div', { class: 'hint' }, `Doʻstingiz balansini toʻldirgan har safar ${state.cfg.referralPercent}% bonus olasiz`)),
+          icon('chev', 20)));
+      }
+      if (state.me.isAdmin) {
+        box.append(h('button', { class: 'card flat teaser live pressable', id: 'admin-card', onclick: () => { state.admin.detail = null; go('admin'); } }, h('div', { class: 'ico' }, icon('chart', 22)),
+          h('div', { class: 'grow' }, h('div', { style: 'font-weight:650' }, 'Admin paneli'),
+            h('div', { class: 'hint' }, 'Daromad, foydalanuvchilar, balansni qoʻshish va ayirish')),
+          icon('chev', 20)));
+      }
     };
     draw();
     if (!state.ordersLoaded) loadOrders().then(() => { if (state.screen === 'home') { draw(); if (state.orders.some((o) => o.status === 'processing')) startPolling(); } }).catch(() => { state.ordersLoaded = true; draw(); });
@@ -615,7 +634,7 @@
     loadPayments().then(() => {
       if (state.screen !== 'balance') return;
       if (state.payments.length) hist.append(h('div', { class: 'sec' }, h('h2', {}, 'Toʻlovlar')), h('div', { class: 'group' }, state.payments.map((x) => h('div', { class: 'li' }, h('div', { class: 'ico' }, icon('down', 20)), h('div', { class: 'grow' }, h('div', { class: 't' }, money(x.amount)), h('div', { class: 'hint' }, when(x.createdAt))), h('span', { class: 'badge ' + x.status }, STATUS[x.status] || x.status)))));
-      if (state.ledger.length) hist.append(h('div', { class: 'sec' }, h('h2', {}, 'Harakatlar')), h('div', { class: 'group' }, state.ledger.map((x) => h('div', { class: 'li' }, h('div', { class: 'ico' + (x.type === 'charge' ? ' out' : '') }, icon(x.type === 'charge' ? 'up' : 'down', 20)), h('div', { class: 'grow' }, h('div', { class: 't' }, LEDGER[x.type] || x.type), h('div', { class: 'hint' }, when(x.ts))), h('b', { class: x.type === 'charge' ? 'minus' : 'plus' }, (x.type === 'charge' ? '−' : '+') + money(x.amount))))));
+      if (state.ledger.length) hist.append(h('div', { class: 'sec' }, h('h2', {}, 'Harakatlar')), h('div', { class: 'group' }, state.ledger.map((x) => h('div', { class: 'li' }, h('div', { class: 'ico' + (OUT.includes(x.type) ? ' out' : '') }, icon(OUT.includes(x.type) ? 'up' : 'down', 20)), h('div', { class: 'grow' }, h('div', { class: 't' }, LEDGER[x.type] || x.type), h('div', { class: 'hint' }, when(x.ts))), h('b', { class: OUT.includes(x.type) ? 'minus' : 'plus' }, (OUT.includes(x.type) ? '−' : '+') + money(x.amount))))));
     }).catch(() => {});
   }
   function copy(text) {
@@ -660,6 +679,175 @@
     } }, 'Saqlash');
     card.append(btn);
     view.append(card);
+    view.append(h('div', { class: 'center', style: 'margin-top:6px' }, h('a', { class: 'link', id: 'privacy-link', href: '/privacy.html', target: '_blank', rel: 'noopener',
+      onclick: (e) => { if (tg && tg.openLink) { e.preventDefault(); try { tg.openLink(location.origin + '/privacy.html'); } catch (err) { window.open('/privacy.html', '_blank'); } } } }, 'Maxfiylik siyosati')));
+  }
+
+  // ---------- 6. Referal: doʻst taklif qilish ----------
+  const backHead = (onBack, label) => h('div', { class: 'flow-head' },
+    h('button', { class: 'icon-btn', 'aria-label': 'Orqaga', onclick: onBack }, icon('back', 24)),
+    h('div', { class: 'grow hint', style: 'font-weight:600' }, label));
+  const statCell = (label, value, sub) => h('div', { class: 'stat' }, h('div', { class: 'hint' }, label), h('div', { class: 'v' }, value), sub ? h('div', { class: 'hint' }, sub) : null);
+  const infoRow = (label, value) => h('div', { class: 'li' }, h('div', { class: 'grow' }, label), h('b', {}, value));
+
+  function screenReferral() {
+    const pct = state.cfg.referralPercent;
+    view.append(backHead(() => go('home'), 'Doʻst taklif qiling'), h('div', { class: 'title' }, 'Doʻst taklif qiling'),
+      h('p', { class: 'sub' }, `Havolangiz orqali kelgan doʻstingiz balansini toʻldirganda, har safar summaning ${pct}% sizning balansingizga qoʻshiladi.`));
+    const box = h('div', { id: 'referral-box' }, ...skeletons());
+    view.append(box);
+    api('GET', '/api/referral').then((r) => {
+      if (state.screen !== 'referral') return;
+      box.replaceChildren();
+      if (!r.enabled) return box.append(emptyState('Dastur vaqtincha oʻchirilgan', 'Keyinroq qayta urinib koʻring.'));
+      const share = () => { if (tg && tg.openTelegramLink) tg.openTelegramLink(r.share); else window.open(r.share, '_blank'); };
+      box.append(
+        h('div', { class: 'grid2' }, statCell('Taklif qilinganlar', r.invited), statCell('Toʻlov qilganlar', r.active)),
+        h('div', { class: 'wallet', style: 'margin-top:12px' }, h('div', { class: 'lab' }, 'Olingan bonus'), h('div', { class: 'amt', id: 'ref-earned' }, nf(r.earned), h('small', {}, 'soʻm'))),
+        h('div', { class: 'sec' }, h('h2', {}, 'Sizning havolangiz')),
+        h('div', { class: 'card' }, h('div', { class: 'ref-link', id: 'ref-link', 'data-link': r.link }, r.link.replace(/^https?:\/\//, '')),
+          h('div', { class: 'grid2', style: 'margin-top:12px' },
+            h('button', { class: 'btn', id: 'ref-share', onclick: share }, icon('send', 20), 'Yuborish'),
+            h('button', { class: 'btn ghost', id: 'ref-copy', onclick: () => copy(r.link) }, icon('copy', 20), 'Nusxalash'))),
+        h('div', { class: 'sec' }, h('h2', {}, 'Qanday ishlaydi')),
+        h('div', { class: 'card flat' }, h('div', { class: 'how' },
+          h('div', { class: 's' }, h('span', { class: 'n' }, '1'), h('span', {}, 'Havolani doʻstingizga yuboring.')),
+          h('div', { class: 's' }, h('span', { class: 'n' }, '2'), h('span', {}, 'Doʻstingiz havola orqali botni ochadi va birinchi marta kirganda sizga bogʻlanadi.')),
+          h('div', { class: 's' }, h('span', { class: 'n' }, '3'), h('span', {}, `U balansini toʻldirgan har safar (admin tasdiqlagach) summaning ${r.percent}% sizga bonus boʻlib tushadi.`)))),
+        h('p', { class: 'hint', style: 'margin:4px 2px 0' }, 'Bonus balansga qoʻshiladi va taqdimot, tahrir yoki himoya savollariga ishlatiladi. Oʻzingizni taklif qilib boʻlmaydi; allaqachon botdan foydalangan odam bogʻlanmaydi.'));
+    }).catch((e) => { box.replaceChildren(emptyState('Yuklab boʻlmadi', e.message || '')); });
+  }
+
+  // ---------- 7. Admin paneli ----------
+  const PERIODS = [['today', 'Bugun'], ['week', '7 kun'], ['month', '30 kun'], ['all', 'Hammasi']];
+  const SORTS = [['recent', 'Soʻnggi'], ['spent', 'Koʻp sarflagan'], ['balance', 'Balans']];
+
+  function screenAdmin() {
+    const a = state.admin;
+    if (a.detail) return drawAdminUser();
+    view.append(backHead(() => go('home'), 'Admin paneli'), h('div', { class: 'title' }, 'Admin paneli'));
+    view.append(h('div', { class: 'seg', role: 'tablist' }, [['sum', 'Daromad'], ['users', 'Foydalanuvchilar']].map(([k, l]) =>
+      h('button', { id: 'adm-tab-' + k, class: a.tab === k ? 'on' : '', role: 'tab', 'aria-selected': a.tab === k ? 'true' : 'false', onclick: () => { a.tab = k; render(); } }, l))));
+    const box = h('div', { id: 'admin-box' });
+    view.append(box);
+    if (a.tab === 'sum') adminSummary(box); else adminUsers(box);
+  }
+
+  function adminSummary(box) {
+    const a = state.admin;
+    const draw = () => {
+      box.replaceChildren();
+      const s = a.summary;
+      if (!s) return box.append(...skeletons());
+      const p = s.periods[a.period], t = s.totals;
+      box.append(
+        h('div', { class: 'seg s4' }, PERIODS.map(([k, l]) => h('button', { class: a.period === k ? 'on' : '', 'data-period': k, onclick: () => { a.period = k; draw(); } }, l))),
+        h('div', { class: 'wallet' }, h('div', { class: 'lab' }, 'Daromad (xizmatlarga sarflangan)'), h('div', { class: 'amt', id: 'adm-revenue' }, nf(p.spent), h('small', {}, 'soʻm')),
+          h('div', { class: 'lab', id: 'adm-topups' }, `Kartaga tushgan: ${money(p.topups)} · ${p.topupCount} ta toʻlov`)),
+        h('div', { class: 'sec' }, h('h2', {}, 'Ishlar')),
+        h('div', { class: 'grid2' }, statCell('Taqdimotlar', p.decks), statCell('Tahrirlar', p.edits), statCell('Himoya savollari', p.defenses), statCell('Yangi foydalanuvchi', p.newUsers)),
+        h('div', { class: 'sec' }, h('h2', {}, 'Balans harakatlari')),
+        h('div', { class: 'group' }, infoRow('Yechilgan', money(p.charged)), infoRow('Qaytarilgan', money(p.refunded)), infoRow('Referal bonuslari', money(p.referral)), infoRow('Admin qoʻshgan', money(p.bonus)), infoRow('Admin ayirgan', money(p.debit))),
+        h('div', { class: 'sec' }, h('h2', {}, 'Hozirgi holat')),
+        h('div', { class: 'group' }, infoRow('Foydalanuvchilar', t.users), infoRow('Balanslardagi qoldiq', money(t.balances)), infoRow('Tasdiq kutayotgan toʻlovlar', `${t.pending} ta · ${money(t.pendingAmount)}`)),
+        h('p', { class: 'hint', style: 'margin:10px 2px 0' }, 'Daromad — mijozlar xizmatlarga sarflagan pul (qaytarilganlari ayirilgan). Kartaga tushgan — siz tasdiqlagan haqiqiy toʻlovlar. Admin qoʻshgan va referal bonuslari haqiqiy pul emas.'));
+    };
+    draw();
+    api('GET', '/api/admin/summary').then((s) => { a.summary = s; if (state.screen === 'admin' && a.tab === 'sum' && !a.detail) draw(); }).catch((e) => toast(e.message));
+  }
+
+  function adminUsers(box) {
+    const a = state.admin;
+    const inp = h('input', { type: 'text', id: 'adm-q', enterkeyhint: 'search', autocomplete: 'off', placeholder: 'Ism, @username yoki ID', 'aria-label': 'Qidirish', value: a.q });
+    const sorts = h('div', { class: 'seg s3', style: 'margin-top:10px' });
+    const list = h('div', { id: 'adm-list' });
+    const drawSorts = () => sorts.replaceChildren(...SORTS.map(([k, l]) => h('button', { class: a.sort === k ? 'on' : '', 'data-sort': k, onclick: () => { a.sort = k; drawSorts(); load(); } }, l)));
+    const drawList = () => {
+      list.replaceChildren();
+      if (!a.users) return list.append(...skeletons());
+      const rows = a.users.users;
+      if (!rows.length) return list.append(emptyState('Topilmadi', 'Boshqa ism yoki ID bilan qidirib koʻring.'));
+      list.append(h('div', { class: 'hint', style: 'margin:0 2px 8px' }, `Jami: ${a.users.total} ta foydalanuvchi`),
+        h('div', { class: 'group' }, rows.map((u) => h('button', { class: 'li pressable adm-user', style: 'width:100%;text-align:left', 'data-user': u.id, onclick: () => { a.detail = { id: u.id, data: null }; render(); window.scrollTo(0, 0); } },
+          h('div', { class: 'ico' }, initials(u.name)),
+          h('div', { class: 'grow' }, h('div', { class: 't' }, u.name || 'Nomaʼlum'), h('div', { class: 'hint' }, [u.username ? '@' + u.username : '', 'ID ' + u.id, `${u.orders} ish`].filter(Boolean).join(' · '))),
+          h('div', { style: 'text-align:right' }, h('b', {}, money(u.balance)), h('div', { class: 'hint' }, `sarf ${nf(u.spent)}`))))));
+    };
+    let seq = 0;
+    const load = () => {
+      const my = ++seq;
+      return api('GET', '/api/admin/users?' + new URLSearchParams({ q: a.q, sort: a.sort, limit: '30' })).then((j) => {
+        if (my !== seq || state.screen !== 'admin' || a.detail || a.tab !== 'users') return;
+        a.users = j; drawList();
+      }).catch((e) => toast(e.message));
+    };
+    let timer;
+    inp.addEventListener('input', () => { a.q = inp.value; clearTimeout(timer); timer = setTimeout(load, 300); });
+    box.append(inp, sorts, h('div', { style: 'height:12px' }), list);
+    drawSorts(); drawList(); load();
+  }
+
+  function drawAdminUser() {
+    const a = state.admin, dt = a.detail;
+    view.append(backHead(() => { a.detail = null; render(); }, 'Foydalanuvchi'));
+    const box = h('div', { id: 'admin-user' });
+    view.append(box);
+    const draw = () => {
+      box.replaceChildren();
+      const d = dt.data;
+      if (!d) return box.append(...skeletons());
+      const u = d.user, t = d.totals, r = d.referral;
+      const amt = h('input', { type: 'number', inputmode: 'numeric', min: 1, id: 'adm-amount', placeholder: 'Summa (soʻm)', 'aria-label': 'Summa' });
+      const note = h('input', { type: 'text', id: 'adm-note', maxlength: 80, placeholder: 'Izoh (ixtiyoriy)', 'aria-label': 'Izoh' });
+      const confirmBox = h('div', {});
+      const apply = async (op, v, btn) => {
+        btn.disabled = true;
+        try {
+          const j = await api('POST', `/api/admin/users/${u.id}/balance`, { op, amount: v, note: note.value });
+          dt.data = j.detail; haptic('success'); toast(op === 'add' ? 'Qoʻshildi. Foydalanuvchiga xabar yuborildi.' : 'Ayirildi. Foydalanuvchiga xabar yuborildi.');
+          draw();
+        } catch (e) { toast(e.message); haptic('error'); btn.disabled = false; }
+      };
+      const ask = (op) => {
+        const v = Number(amt.value);
+        if (!Number.isInteger(v) || v < 1) { haptic('error'); return toast('Summani butun son bilan kiriting.'); }
+        confirmBox.replaceChildren(h('div', { class: 'card flat', style: 'margin:12px 0 0;border-color:var(--warn)' },
+          h('div', { style: 'font-weight:650;margin-bottom:10px' }, `${op === 'add' ? 'Balansga qoʻshish' : 'Balansdan ayirish'}: ${money(v)}. Tasdiqlaysizmi?`),
+          h('div', { class: 'row', style: 'gap:8px' }, h('button', { class: 'btn sm', id: 'adm-confirm', onclick: (e) => apply(op, v, e.currentTarget) }, 'Ha, tasdiqlayman'), h('button', { class: 'btn ghost sm', onclick: () => confirmBox.replaceChildren() }, 'Bekor qilish'))));
+      };
+      box.append(
+        h('div', { class: 'center' }, h('div', { class: 'avatar' }, initials(u.name)), h('div', { style: 'font-size:20px;font-weight:800' }, u.name || 'Nomaʼlum'),
+          h('div', { class: 'hint' }, [u.username ? '@' + u.username : '', 'ID ' + u.id].filter(Boolean).join(' · ')), h('div', { class: 'hint' }, 'Qoʻshilgan: ' + when(u.createdAt))),
+        h('div', { class: 'wallet' }, h('div', { class: 'lab' }, 'Balans'), h('div', { class: 'amt', id: 'adm-balance' }, nf(u.balance), h('small', {}, 'soʻm'))),
+        h('div', { class: 'sec' }, h('h2', {}, 'Balansni oʻzgartirish')),
+        h('div', { class: 'card' }, amt, h('div', { style: 'height:10px' }), note,
+          h('div', { class: 'grid2', style: 'margin-top:12px' },
+            h('button', { class: 'btn', id: 'adm-add', onclick: () => ask('add') }, icon('down', 20), 'Qoʻshish'),
+            h('button', { class: 'btn line', id: 'adm-sub', style: 'color:var(--bad)', onclick: () => ask('sub') }, icon('up', 20), 'Ayirish')),
+          confirmBox),
+        h('div', { class: 'sec' }, h('h2', {}, 'Umumiy')),
+        h('div', { class: 'group' }, infoRow('Sarflagan', money(t.spent)), infoRow('Toʻldirgan', money(t.topups)), infoRow('Tayyor ishlar', t.orders),
+          infoRow('Taklif qilganlar', `${r.invited} (toʻlov qilgan ${r.active})`), infoRow('Referal bonusi', money(r.earned)),
+          infoRow('Uni taklif qilgan', r.by ? `${r.by.name || r.by.id}${r.by.username ? ' @' + r.by.username : ''}` : 'yoʻq')));
+      if (d.ledger.length) {
+        box.append(h('div', { class: 'sec' }, h('h2', {}, 'Soʻnggi harakatlar')), h('div', { class: 'group' }, d.ledger.map((x) => h('div', { class: 'li' },
+          h('div', { class: 'ico' + (OUT.includes(x.type) ? ' out' : '') }, icon(OUT.includes(x.type) ? 'up' : 'down', 20)),
+          h('div', { class: 'grow' }, h('div', { class: 't' }, LEDGER[x.type] || x.type), h('div', { class: 'hint' }, [when(x.ts), x.note].filter(Boolean).join(' · '))),
+          h('b', { class: OUT.includes(x.type) ? 'minus' : 'plus' }, (OUT.includes(x.type) ? '−' : '+') + money(x.amount))))));
+      }
+      if (d.orders.length) {
+        box.append(h('div', { class: 'sec' }, h('h2', {}, 'Soʻnggi buyurtmalar')), h('div', { class: 'group' }, d.orders.map((o) => h('div', { class: 'li' },
+          h('div', { class: 'grow' }, h('div', { class: 't' }, o.topic || (o.type === 'edit' ? 'Tahrir' : 'Buyurtma')), h('div', { class: 'hint' }, [o.type === 'edit' ? 'tahrir' : 'taqdimot', money(o.price), when(o.createdAt)].join(' · '))),
+          h('span', { class: 'badge ' + o.status }, STATUS[o.status] || o.status)))));
+      }
+      if (d.payments.length) {
+        box.append(h('div', { class: 'sec' }, h('h2', {}, 'Toʻlovlar')), h('div', { class: 'group' }, d.payments.map((x) => h('div', { class: 'li' },
+          h('div', { class: 'grow' }, h('div', { class: 't' }, money(x.amount)), h('div', { class: 'hint' }, when(x.createdAt))),
+          h('span', { class: 'badge ' + x.status }, STATUS[x.status] || x.status)))));
+      }
+    };
+    draw();
+    api('GET', `/api/admin/users/${dt.id}`).then((d) => { if (state.screen === 'admin' && state.admin.detail === dt) { dt.data = d; draw(); } }).catch((e) => toast(e.message));
   }
 
   // ---------- boshlash ----------
