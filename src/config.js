@@ -65,6 +65,11 @@ module.exports = {
   PRICE_DEFENSE: num(process.env.PRICE_DEFENSE, 2000),
   DEFENSE_QUESTIONS: Math.min(15, Math.max(6, num(process.env.DEFENSE_QUESTIONS, 12))),
   MIN_TOPUP: num(process.env.MIN_TOPUP, 10000),
+  // Referal dasturi: taklif qilingan foydalanuvchining har bir TASDIQLANGAN toʻldirishidan shuncha foiz taklif qilganga balansga qoʻshiladi.
+  // 0 boʻlsa dastur oʻchadi. Bonus faqat haqiqiy toʻlovdan keyin beriladi, shuning uchun soxta akkauntlar zarar keltirmaydi.
+  REFERRAL_PERCENT: Math.min(50, Math.max(0, num(process.env.REFERRAL_PERCENT, 10))),
+  // Taklif havolasi uchun bot nomi (@siz). Bot ishga tushgach, haqiqiy nom Telegramdan olinadi.
+  BOT_USERNAME: String(process.env.BOT_USERNAME || 'Space_deckbot').replace(/^@/, '').trim(),
   MIN_SLIDES: 8,
   MAX_SLIDES: 30,
 

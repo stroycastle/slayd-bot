@@ -205,6 +205,16 @@ class Store {
   refund(userId, amount, note) {
     return this.credit(userId, amount, note, 'refund');
   }
+  /** Admin qoʻlda ayiradi (xizmat narxi emas). Balans yetmasa false, hech narsa oʻzgarmaydi. */
+  debit(userId, amount, note) {
+    const u = this.getUser(userId);
+    if (!u || amount <= 0 || u.balance < amount) return false;
+    u.balance -= amount;
+    this._mark('user', u.id);
+    this._ledger(userId, 'debit', amount, note);
+    this.save();
+    return true;
+  }
 
   // ---------- buyurtmalar ----------
   addOrder(o) {
@@ -283,15 +293,53 @@ class Store {
     }
     return p;
   }
-  /** Tasdiqlash faqat bir marta ishlaydi. */
-  approvePayment(id, adminId) {
+  /**
+   * Tasdiqlash faqat bir marta ishlaydi. opts.referralPercent > 0 boʻlsa va toʻlov qilgan foydalanuvchini kimdir taklif qilgan boʻlsa,
+   * taklif qilganga summaning shuncha foizi 'referral' turida qoʻshiladi; natija p.referral = { to, amount } da qoladi.
+   */
+  approvePayment(id, adminId, opts = {}) {
     const p = this.getPayment(id);
     if (!p || p.status !== 'pending') return null;
     p.status = 'approved';
     p.by = adminId;
     this._mark('payment', p.id);
     this.credit(p.userId, p.amount, `To'lov #${p.id}`, 'topup');
+    const pct = Number(opts.referralPercent) || 0;
+    const payer = this.getUser(p.userId);
+    if (pct > 0 && payer && payer.referredBy && this.getUser(payer.referredBy)) {
+      const bonus = Math.floor((p.amount * pct) / 100);
+      if (bonus > 0 && this.credit(payer.referredBy, bonus, `Referal bonus (toʻlov #${p.id})`, 'referral')) {
+        p.referral = { to: payer.referredBy, amount: bonus };
+        this._mark('payment', p.id);
+        this.save();
+      }
+    }
     return p;
+  }
+
+  // ---------- referal ----------
+  /**
+   * Foydalanuvchini taklif qilgan odamga bogʻlaydi (bir marta, oʻzgarmaydi). Faqat xizmatdan hali foydalanmagan
+   * (buyurtma, toʻlov, pul harakati yoʻq) foydalanuvchiga; oʻzini oʻzi va doira (A→B, B→A) taqiqlangan.
+   */
+  setReferrer(userId, refId) {
+    const u = this.getUser(userId);
+    const r = this.getUser(refId);
+    if (!u || !r || u.id === r.id || u.referredBy || r.referredBy === u.id) return false;
+    const used = this.db.ledger.some((l) => l.userId === u.id) || this.db.orders.some((o) => o.userId === u.id) || this.db.payments.some((p) => p.userId === u.id);
+    if (used) return false;
+    u.referredBy = r.id;
+    this._mark('user', u.id);
+    this.save();
+    return true;
+  }
+  /** Taklif qilganlar soni, ulardan toʻlov qilganlar soni va olingan referal bonuslar yigʻindisi. */
+  referralStats(userId) {
+    const me = Number(userId);
+    const ids = new Set(Object.values(this.db.users).filter((u) => u.referredBy === me).map((u) => u.id));
+    const paid = new Set(this.db.payments.filter((p) => p.status === 'approved' && ids.has(p.userId)).map((p) => p.userId));
+    const earned = this.db.ledger.filter((l) => l.userId === me && l.type === 'referral').reduce((s, l) => s + l.amount, 0);
+    return { invited: ids.size, active: paid.size, earned };
   }
   rejectPayment(id, adminId) {
     const p = this.getPayment(id);

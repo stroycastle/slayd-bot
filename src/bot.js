@@ -7,10 +7,13 @@ const path = require('path');
 const fs = require('fs');
 const { PALETTES, STYLES, STYLE_KEYS, styleOf, randomStyle } = require('./deck');
 const { extractText, clip } = require('./extract');
+const referral = require('./referral');
+const admin = require('./admin');
 
 const BTN_NEW = '📊 Yangi taqdimot';
 const BTN_EDIT = '✏️ Tahrirlash';
 const BTN_BAL = '💰 Balans';
+const BTN_REF = '🎁 Doʻst taklif qilish';
 const BTN_HELP = 'ℹ️ Narxlar va yordam';
 
 const LANGS = {
@@ -41,7 +44,7 @@ function createBot({ store, download }) {
   const drafts = new Map(); // foydalanuvchi -> tayyor buyurtma loyihasi
   const busy = new Set(); // hozir slayd tayyorlanayotgan foydalanuvchilar
 
-  const menu = Markup.keyboard([[BTN_NEW], [BTN_EDIT, BTN_BAL], [BTN_HELP]]).resize();
+  const menu = Markup.keyboard([[BTN_NEW], [BTN_EDIT, BTN_BAL], [BTN_REF, BTN_HELP]]).resize();
   const cancelKb = Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor qilish', 'cancel')]]);
   const setState = (id, step, data) => {
     const old = states.get(id);
@@ -83,8 +86,28 @@ function createBot({ store, download }) {
 
   bot.start((ctx) => {
     clearState(ctx.from.id);
+    // taklif havolasi: /start ref_<taklif qiluvchi ID>. Faqat xizmatdan hali foydalanmagan yangi odam bogʻlanadi.
+    const refId = referral.parseStart(ctx.message && ctx.message.text);
+    if (refId && config.REFERRAL_PERCENT > 0 && store.setReferrer(ctx.from.id, refId)) {
+      bot.telegram
+        .sendMessage(refId, `👥 Sizning havolangiz orqali yangi foydalanuvchi qoʻshildi. U balansini toʻldirganda, har safar summaning <b>${config.REFERRAL_PERCENT}%</b> sizga bonus boʻlib tushadi.`, HTML)
+        .catch(() => {});
+    }
     return ctx.reply(welcome(), { ...HTML, ...menu });
   });
+
+  // ------------------------------------------------------------ referal
+  const showReferral = (ctx) => {
+    if (!(config.REFERRAL_PERCENT > 0)) return ctx.reply('Referal dasturi hozircha mavjud emas.', menu);
+    const st = store.referralStats(ctx.from.id);
+    const link = referral.link(bot.botInfo, ctx.from.id);
+    return ctx.reply(
+      `🎁 <b>Doʻst taklif qiling, bonus oling</b>\n\nHavolangiz orqali kelgan doʻstingiz balansini toʻldirganda, har safar summaning <b>${config.REFERRAL_PERCENT}%</b> sizning balansingizga qoʻshiladi.\n\n🔗 <code>${esc(link)}</code>\n\n👥 Taklif qilinganlar: <b>${st.invited}</b> (toʻlov qilganlari: ${st.active})\n💰 Olingan bonus: <b>${fmt(st.earned)}</b>`,
+      { ...HTML, ...Markup.inlineKeyboard([[Markup.button.url('📤 Doʻstlarga yuborish', referral.shareUrl(bot.botInfo, ctx.from.id))]]) }
+    );
+  };
+  bot.hears(BTN_REF, showReferral);
+  bot.command('referal', showReferral);
   bot.command('id', (ctx) => ctx.reply(`Sizning ID raqamingiz: ${ctx.from.id}`));
   bot.command('cancel', (ctx) => {
     clearState(ctx.from.id);
@@ -102,10 +125,27 @@ function createBot({ store, download }) {
     ctx.reply(
       `<b>Narxlar</b>\n${priceLine()}\n• Tahrir: ${fmt(config.PRICE_EDIT)}\n\n` +
         `<b>Qanday ishlaydi</b>\n1. Balansni toʻldirasiz (kartaga oʻtkazib, chekni yuborasiz).\n2. «${BTN_NEW}» — mavzu, slaydlar soni, til, rang, koʻrinish (20 xil), maʼruza matni.\n3. Taqdimot tayyor boʻlgach .pptx va PDF keladi.\n4. Oʻzgartirish kerak boʻlsa «${BTN_EDIT}».\n\n` +
-        `<b>Muhim</b>\nMatnni AI yozadi. Topshirishdan oldin oʻqib chiqing, faktlar va adabiyotlar roʻyxatini tekshiring, kerak boʻlsa oʻz soʻzingiz bilan moslang.`,
-      HTML
+        `<b>Muhim</b>\nMatnni AI yozadi. Topshirishdan oldin oʻqib chiqing, faktlar va adabiyotlar roʻyxatini tekshiring, kerak boʻlsa oʻz soʻzingiz bilan moslang.\n\n` +
+        `<b>Savol yoki muammo</b>\n/murojaat <i>matn</i> — adminga yuboriladi.` +
+        (config.WEBAPP_URL ? `\n\n<a href="${esc(config.WEBAPP_URL)}/privacy.html">Maxfiylik siyosati</a>` : ''),
+      { ...HTML, disable_web_page_preview: true }
     )
   );
+
+  // adminga murojaat (savol, toʻlov muammosi, maʼlumotni oʻchirish soʻrovi). Bir foydalanuvchi 30 soniyada bir marta yozishi mumkin.
+  const lastContact = new Map();
+  bot.command('murojaat', async (ctx) => {
+    const text = ctx.message.text.replace(/^\/murojaat(@\w+)?\s*/i, '').trim();
+    if (text.length < 5) {
+      return ctx.reply('Murojaat matnini buyruqdan keyin yozing. Masalan:\n/murojaat Toʻlovim tasdiqlanmadi, chek yuborgan edim.\n\nMaʼlumotlaringizni oʻchirish uchun ham shu buyruqdan foydalaning.');
+    }
+    const now = Date.now();
+    if (now - (lastContact.get(ctx.from.id) || 0) < 30000) return ctx.reply('Biroz kuting va qayta yozing (30 soniyada bir marta).');
+    lastContact.set(ctx.from.id, now);
+    const u = store.getUser(ctx.from.id) || {};
+    await notifyAdmins(`✉️ <b>Murojaat</b>\n<a href="tg://user?id=${ctx.from.id}">${esc(u.name || 'Foydalanuvchi')}</a>${u.username ? ' @' + esc(u.username) : ''} (ID ${ctx.from.id})\n\n${esc(text.slice(0, 1500))}`, HTML);
+    return ctx.reply('Murojaatingiz adminga yuborildi. Javobni shu yerda yoki Telegram orqali olasiz.', menu);
+  });
 
   // ------------------------------------------------------------ yangi taqdimot
   bot.hears(BTN_NEW, (ctx) => {
@@ -495,7 +535,7 @@ function createBot({ store, download }) {
   bot.action(/^pay:(ok|no):(\d+)$/, async (ctx) => {
     if (!isAdmin(ctx.from.id)) return ctx.answerCbQuery('Ruxsat yoʻq').catch(() => {});
     const ok = ctx.match[1] === 'ok';
-    const pay = ok ? store.approvePayment(ctx.match[2], ctx.from.id) : store.rejectPayment(ctx.match[2], ctx.from.id);
+    const pay = ok ? store.approvePayment(ctx.match[2], ctx.from.id, { referralPercent: config.REFERRAL_PERCENT }) : store.rejectPayment(ctx.match[2], ctx.from.id);
     if (!pay) return ctx.answerCbQuery('Bu toʻlov allaqachon koʻrib chiqilgan').catch(() => {});
     await ctx.answerCbQuery(ok ? 'Tasdiqlandi' : 'Rad etildi').catch(() => {});
     try {
@@ -509,14 +549,47 @@ function createBot({ store, download }) {
       ? `✅ Balansingiz ${fmt(pay.amount)} ga toʻldirildi. Hozirgi balans: <b>${fmt(u.balance)}</b>.`
       : `❌ #${pay.id} toʻlov tasdiqlanmadi. Chek notoʻgʻri boʻlsa, qayta yuboring yoki adminga murojaat qiling.`;
     bot.telegram.sendMessage(pay.userId, msg, { ...HTML, ...menu }).catch(() => {});
+    if (ok && pay.referral) {
+      const r = store.getUser(pay.referral.to);
+      bot.telegram
+        .sendMessage(pay.referral.to, `🎁 Referal bonus: taklif qilgan doʻstingiz balansini toʻldirdi. Sizga <b>${fmt(pay.referral.amount)}</b> qoʻshildi. Hozirgi balans: <b>${fmt(r ? r.balance : 0)}</b>.`, HTML)
+        .catch(() => {});
+    }
   });
 
   // ------------------------------------------------------------ admin buyruqlari
   bot.command('stat', (ctx) => {
     if (!isAdmin(ctx.from.id)) return;
     const s = store.stats();
+    const sm = admin.summary(store);
+    const line = (label, p) => `${label}: daromad ${fmt(p.spent)} · kartaga tushgan ${fmt(p.topups)} · yangi: ${p.newUsers}`;
     return ctx.reply(
-      `Foydalanuvchilar: ${s.users}\nTaqdimotlar: ${s.decks}\nTahrirlar: ${s.edits}\nTushum (xarajat qilingan): ${fmt(s.revenue)}\nTasdiqlangan toʻldirishlar: ${fmt(s.topups)}\nBalanslardagi qoldiq: ${fmt(s.balances)}\nTasdiq kutayotgan toʻlovlar: ${s.pending}`
+      `Foydalanuvchilar: ${s.users}\nTaqdimotlar: ${s.decks}\nTahrirlar: ${s.edits}\nTushum (xarajat qilingan): ${fmt(s.revenue)}\nTasdiqlangan toʻldirishlar: ${fmt(s.topups)}\nBalanslardagi qoldiq: ${fmt(s.balances)}\nTasdiq kutayotgan toʻlovlar: ${s.pending}\n\n` +
+        `${line('Bugun', sm.periods.today)}\n${line('7 kun', sm.periods.week)}\n${line('30 kun', sm.periods.month)}\nReferal bonuslari (jami): ${fmt(sm.periods.all.referral)}\n\n` +
+        `Foydalanuvchilar, balans va daromadni Ilovada (Bosh sahifa → Admin) koʻrasiz. Buyruqlar: /qosh, /ayir, /user.`
+    );
+  });
+  // balansni qoʻlda oʻzgartirish: /qosh <id> <summa> [izoh], /ayir <id> <summa> [izoh]
+  const adjustCmd = (op) => (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    const [, uid, amount, ...note] = ctx.message.text.trim().split(/\s+/);
+    if (!/^\d+$/.test(uid || '') || !/^\d+$/.test(amount || '')) return ctx.reply(`Format: /${op === 'add' ? 'qosh' : 'ayir'} <foydalanuvchi_id> <summa> [izoh]`);
+    const res = admin.adjust(store, ctx.from.id, uid, op, Number(amount), note.join(' '));
+    if (!res.ok) return ctx.reply(res.message);
+    bot.telegram.sendMessage(Number(uid), admin.notice(res)).catch(() => {});
+    return ctx.reply(`${op === 'add' ? 'Qoʻshildi' : 'Ayirildi'}. Yangi balans: ${fmt(res.balance)}`);
+  };
+  bot.command('qosh', adjustCmd('add'));
+  bot.command('ayir', adjustCmd('sub'));
+  bot.command('user', (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    const arg = ctx.message.text.trim().split(/\s+/)[1] || '';
+    const found = /^\d+$/.test(arg) && store.getUser(arg) ? { id: Number(arg) } : admin.listUsers(store, { q: arg, limit: 1 }).users[0];
+    const d = found && admin.userDetail(store, found.id);
+    if (!d) return ctx.reply('Format: /user <id yoki @username>. Foydalanuvchi topilmadi.');
+    const u = d.user, t = d.totals;
+    return ctx.reply(
+      `${u.name || 'Nomaʼlum'} ${u.username ? '@' + u.username : ''} (ID ${u.id})\nBalans: ${fmt(u.balance)}\nSarflagan: ${fmt(t.spent)} · toʻldirgan: ${fmt(t.topups)}\nTayyor ishlar: ${t.orders}\nTaklif qilganlar: ${d.referral.invited}${d.referral.by ? `\nUni taklif qilgan: ${d.referral.by.name || d.referral.by.id} (ID ${d.referral.by.id})` : ''}`
     );
   });
   bot.command('ai', async (ctx) => {
@@ -526,15 +599,6 @@ function createBot({ store, download }) {
     } catch (e) {
       return ctx.reply('AI holatini olib boʻlmadi: ' + String(e.message || e).slice(0, 300));
     }
-  });
-  bot.command('qosh', (ctx) => {
-    if (!isAdmin(ctx.from.id)) return;
-    const [, uid, amount] = ctx.message.text.trim().split(/\s+/);
-    const sum = parseInt(amount, 10);
-    if (!store.getUser(uid) || !(sum > 0)) return ctx.reply('Format: /qosh <foydalanuvchi_id> <summa>');
-    store.credit(Number(uid), sum, `Admin ${ctx.from.id} qoʻshdi`);
-    bot.telegram.sendMessage(Number(uid), `✅ Balansingizga ${fmt(sum)} qoʻshildi. Hozirgi balans: ${fmt(store.getUser(uid).balance)}.`).catch(() => {});
-    return ctx.reply(`Qoʻshildi. Yangi balans: ${fmt(store.getUser(uid).balance)}`);
   });
 
   // ------------------------------------------------------------ fayllar (maʼruza / adabiyot)

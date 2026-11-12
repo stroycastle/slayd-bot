@@ -9,6 +9,8 @@ const { verifyInitData } = require('./webauth');
 const { createOrders, profileMissing, LANGS, toPublicLang, fmt } = require('./orders');
 const { PALETTES, STYLES } = require('./deck');
 const { extractText, clip } = require('./extract');
+const adminTools = require('./admin');
+const referral = require('./referral');
 
 const STATIC_DIR = path.join(__dirname, '..', 'miniapp');
 const PREVIEW_DIR = path.join(__dirname, '..', 'assets', 'previews');
@@ -89,7 +91,8 @@ function createWebHandler({ store, bot }) {
     defense: o.defenseStatus || 'none', // himoya savol-javoblari: none | processing | done | failed
   });
   const publicPayment = (p) => ({ id: p.id, amount: p.amount, status: p.status, createdAt: p.createdAt });
-  const publicMe = (u) => ({ id: u.id, name: u.name, username: u.username, balance: u.balance, profile: u.profile || {}, profileMissing: profileMissing(u.profile) || null });
+  const publicMe = (u) => ({ id: u.id, name: u.name, username: u.username, balance: u.balance, profile: u.profile || {}, profileMissing: profileMissing(u.profile) || null, isAdmin: config.ADMIN_IDS.includes(u.id) });
+  const requireAdmin = (uid) => { if (!config.ADMIN_IDS.includes(uid)) throw new HttpError(403, 'forbidden', 'Bu boʻlim faqat admin uchun.'); };
 
   async function route(req, url) {
     const m = req.method;
@@ -103,7 +106,7 @@ function createWebHandler({ store, bot }) {
         user: publicMe(store.getUser(uid)),
         config: {
           flat: config.PRICE_DECK > 0, priceDeck: config.PRICE_DECK, priceSlide: config.PRICE_SLIDE, priceEdit: config.PRICE_EDIT,
-          priceDefense: config.PRICE_DEFENSE, defenseQuestions: config.DEFENSE_QUESTIONS,
+          priceDefense: config.PRICE_DEFENSE, defenseQuestions: config.DEFENSE_QUESTIONS, referralPercent: config.REFERRAL_PERCENT,
           minTopup: config.MIN_TOPUP, maxTopup: 5000000,
           minSlides: config.MIN_SLIDES, maxSlides: config.MAX_SLIDES, maxLecture: config.MAX_LECTURE_CHARS, maxExtract: config.MAX_EXTRACT_BYTES,
           langs: LANGS, colors: Object.entries(PALETTES).map(([k, v]) => ({ key: k, label: v.label, hex: v.accent, dark: v.dark, soft: v.soft, tint: v.tint })),
@@ -219,6 +222,38 @@ function createWebHandler({ store, bot }) {
         throw new HttpError(502, 'send_failed', 'Chekni adminga yuborib boʻlmadi. Birozdan keyin qayta urinib koʻring.');
       }
       return { ok: true };
+    }
+
+    // ---------- referal ----------
+    if (m === 'GET' && p === '/api/referral') {
+      const on = config.REFERRAL_PERCENT > 0;
+      return { enabled: on, percent: config.REFERRAL_PERCENT, link: on ? referral.link(bot && bot.botInfo, uid) : '', share: on ? referral.shareUrl(bot && bot.botInfo, uid) : '', ...store.referralStats(uid) };
+    }
+
+    // ---------- admin ----------
+    if (p.startsWith('/api/admin/')) {
+      requireAdmin(uid);
+      rateLimit(uid, 'admin', 120, 60000);
+      if (m === 'GET' && p === '/api/admin/summary') return adminTools.summary(store);
+      if (m === 'GET' && p === '/api/admin/users') {
+        const sp = url.searchParams;
+        return adminTools.listUsers(store, { q: String(sp.get('q') || '').slice(0, 60), sort: sp.get('sort'), limit: sp.get('limit'), offset: sp.get('offset') });
+      }
+      mm = p.match(/^\/api\/admin\/users\/(\d+)$/);
+      if (m === 'GET' && mm) {
+        const d = adminTools.userDetail(store, mm[1]);
+        if (!d) throw new HttpError(404, 'not_found', 'Foydalanuvchi topilmadi.');
+        return d;
+      }
+      mm = p.match(/^\/api\/admin\/users\/(\d+)\/balance$/);
+      if (m === 'POST' && mm) {
+        rateLimit(uid, 'adminadj', 30, 60000);
+        const b = await readJson(req);
+        const res = adminTools.adjust(store, uid, mm[1], b.op, b.amount, b.note);
+        if (!res.ok) throw new HttpError(res.code, res.error, res.message);
+        if (bot && bot.telegram) bot.telegram.sendMessage(Number(mm[1]), adminTools.notice(res)).catch(() => {});
+        return { ok: true, balance: res.balance, detail: adminTools.userDetail(store, mm[1]) };
+      }
     }
 
     throw new HttpError(404, 'not_found', 'Topilmadi.');
