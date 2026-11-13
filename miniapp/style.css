@@ -251,3 +251,10 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .stat .v { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin: 2px 0; font-variant-numeric: tabular-nums; }
 .ref-link { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; padding: 12px 14px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); user-select: all; }
 .li.adm-user b { white-space: nowrap; }
+
+/* ---- baho (yulduzcha) ---- */
+.rate { display: flex; align-items: center; gap: 2px; margin-top: 8px; }
+.rate .hint { margin-right: 6px; }
+.star { background: none; border: 0; padding: 4px 3px; font-size: 26px; line-height: 1; color: var(--line); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.star.on { color: #f5a524; }
+.star:active { transform: scale(.9); }

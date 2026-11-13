@@ -26,7 +26,7 @@
     qq: { name: 'Qaraqalpaqsha', sub: 'Lotin yozuvi · sinov bosqichida' },
   };
   const STATUS = { processing: 'Tayyorlanmoqda', done: 'Tayyor', failed: 'Xato', waiting_receipt: 'Chek kutilmoqda', pending: 'Tekshirilmoqda', approved: 'Tasdiqlandi', rejected: 'Rad etildi' };
-  const LEDGER = { topup: 'Balans toʻldirildi', charge: 'Xizmat uchun', refund: 'Pul qaytarildi', credit: 'Balansga qoʻshildi', referral: 'Referal bonus', debit: 'Balansdan ayirildi' };
+  const LEDGER = { topup: 'Balans toʻldirildi', charge: 'Xizmat uchun', refund: 'Pul qaytarildi', credit: 'Balansga qoʻshildi', referral: 'Referal bonus', debit: 'Balansdan ayirildi', promo: 'Promo-kod bonusi' };
   const OUT = ['charge', 'debit']; // balansdan chiqim boʻlgan harakatlar
   const SUGGEST = ['Sotsiolingvistika asoslari', 'Islomning vujudga kelishi va tarqalishi', 'Grammatik kategoriya va grammatik shakl', 'Oʻzbek tili leksikologiyasi'];
   const MAIN = ['home', 'history', 'balance', 'profile'];
@@ -38,7 +38,7 @@
     // himoyaga tayyorgarlik: orderId, data (server javobi), mode: 'list' | 'practice', practice (mashq holati)
     defense: { orderId: null, data: null, mode: 'list', practice: null },
     // admin paneli: tab (sum | users), davr, yigʻma, foydalanuvchilar roʻyxati, tanlangan foydalanuvchi
-    admin: { tab: 'sum', period: 'today', summary: null, q: '', sort: 'recent', users: null, detail: null },
+    admin: { tab: 'sum', period: 'today', summary: null, q: '', sort: 'recent', users: null, promos: null, detail: null },
   };
   const LEVEL = { easy: 'Oson', medium: 'Oʻrta', hard: 'Qiyin' };
 
@@ -215,7 +215,19 @@
         o.error ? h('div', { class: 'hint minus', style: 'margin-top:4px' }, o.error) : null,
         withResend && o.status === 'done' ? h('div', { class: 'acts' },
           h('button', { class: 'btn ghost sm', onclick: (e) => resend(o.id, e.currentTarget) }, icon('send', 16), 'Chatga qayta yuborish'),
-          h('button', { class: 'btn ghost sm', 'data-defense': o.id, onclick: () => openDefense(o.id) }, icon('shield', 16), defenseLabel(o))) : null));
+          h('button', { class: 'btn ghost sm', 'data-defense': o.id, onclick: () => openDefense(o.id) }, icon('shield', 16), defenseLabel(o))) : null,
+        withResend && o.status === 'done' && o.type !== 'edit' ? ratingRow(o) : null));
+  }
+  // 1–5 yulduz: bosilganda saqlanadi, qayta bosib oʻzgartirish mumkin
+  function ratingRow(o) {
+    const row = h('div', { class: 'rate', 'data-rate': o.id });
+    const draw = () => row.replaceChildren(h('span', { class: 'hint' }, o.rating ? 'Bahoyingiz' : 'Baholang'),
+      ...[1, 2, 3, 4, 5].map((n) => h('button', { class: 'star' + (o.rating >= n ? ' on' : ''), 'data-star': n, 'aria-label': `${n} yulduz`, onclick: async () => {
+        try { await api('POST', `/api/orders/${o.id}/rating`, { stars: n }); o.rating = n; haptic('success'); toast('Rahmat! Bahoyingiz qabul qilindi.'); draw(); }
+        catch (err) { toast(err.message); haptic('error'); }
+      } }, '★')));
+    draw();
+    return row;
   }
   function defenseLabel(o) {
     const p = state.cfg.priceDefense;
@@ -583,12 +595,25 @@
 
   // ---------- 4. Balans ----------
   async function loadPayments() { const j = await api('GET', '/api/payments'); state.payments = j.payments; state.ledger = j.ledger; state.me.balance = j.balance; }
+  function promoCard() {
+    if (state.me.promoUsed) return h('p', { id: 'promo-used', class: 'hint', style: 'margin:14px 2px' }, 'Promo-kod ishlatilgan (har foydalanuvchi bir marta ishlata oladi).');
+    const inp = h('input', { type: 'text', id: 'promo-input', autocomplete: 'off', autocapitalize: 'characters', maxlength: 20, placeholder: 'Promo-kod', 'aria-label': 'Promo-kod' });
+    const btn = h('button', { class: 'btn sm', id: 'promo-go', onclick: async () => {
+      const code = inp.value.trim();
+      if (!code) { haptic('error'); return toast('Promo-kodni yozing.'); }
+      btn.disabled = true;
+      try { const j = await api('POST', '/api/promo', { code }); state.me.balance = j.balance; state.me.promoUsed = true; haptic('success'); toast(`Promo-kod qabul qilindi: +${money(j.amount)}`); render(); }
+      catch (e) { toast(e.message); haptic('error'); btn.disabled = false; }
+    } }, 'Qoʻllash');
+    return h('div', {}, h('div', { class: 'sec' }, h('h2', {}, 'Promo-kod')), h('div', { class: 'card' }, h('div', { class: 'row', style: 'gap:8px' }, h('div', { class: 'grow' }, inp), btn)));
+  }
   function screenBalance() {
     const c = state.cfg;
     const [int] = [new Intl.NumberFormat('ru-RU').format(state.me.balance || 0).replace(/\u00a0/g, ' ')];
     view.append(h('div', { class: 'wallet' }, h('div', { class: 'lab' }, 'Joriy balans'), h('div', { class: 'amt' }, int, h('small', {}, 'soʻm')), h('div', { class: 'lab' }, c.flat ? `Taqdimot — ${money(c.priceDeck)} (slayd soniga bogʻliq emas)` : `1 slayd — ${money(c.priceSlide)}`)));
     const panel = h('div', {});
     view.append(panel);
+    view.append(promoCard());
     const amounts = [c.minTopup, 25000, 50000, 100000].filter((v, i, a) => v >= c.minTopup && a.indexOf(v) === i);
     const drawTopup = () => {
       panel.replaceChildren();
@@ -726,11 +751,11 @@
     const a = state.admin;
     if (a.detail) return drawAdminUser();
     view.append(backHead(() => go('home'), 'Admin paneli'), h('div', { class: 'title' }, 'Admin paneli'));
-    view.append(h('div', { class: 'seg', role: 'tablist' }, [['sum', 'Daromad'], ['users', 'Foydalanuvchilar']].map(([k, l]) =>
+    view.append(h('div', { class: 'seg s3', role: 'tablist' }, [['sum', 'Daromad'], ['users', 'Foydalanuvchilar'], ['promo', 'Promo']].map(([k, l]) =>
       h('button', { id: 'adm-tab-' + k, class: a.tab === k ? 'on' : '', role: 'tab', 'aria-selected': a.tab === k ? 'true' : 'false', onclick: () => { a.tab = k; render(); } }, l))));
     const box = h('div', { id: 'admin-box' });
     view.append(box);
-    if (a.tab === 'sum') adminSummary(box); else adminUsers(box);
+    if (a.tab === 'sum') adminSummary(box); else if (a.tab === 'users') adminUsers(box); else adminPromos(box);
   }
 
   function adminSummary(box) {
@@ -747,13 +772,51 @@
         h('div', { class: 'sec' }, h('h2', {}, 'Ishlar')),
         h('div', { class: 'grid2' }, statCell('Taqdimotlar', p.decks), statCell('Tahrirlar', p.edits), statCell('Himoya savollari', p.defenses), statCell('Yangi foydalanuvchi', p.newUsers)),
         h('div', { class: 'sec' }, h('h2', {}, 'Balans harakatlari')),
-        h('div', { class: 'group' }, infoRow('Yechilgan', money(p.charged)), infoRow('Qaytarilgan', money(p.refunded)), infoRow('Referal bonuslari', money(p.referral)), infoRow('Admin qoʻshgan', money(p.bonus)), infoRow('Admin ayirgan', money(p.debit))),
+        h('div', { class: 'group' }, infoRow('Yechilgan', money(p.charged)), infoRow('Qaytarilgan', money(p.refunded)), infoRow('Referal bonuslari', money(p.referral)), infoRow('Promo-kod bonuslari', money(p.promo)), infoRow('Admin qoʻshgan', money(p.bonus)), infoRow('Admin ayirgan', money(p.debit))),
+        h('div', { class: 'sec' }, h('h2', {}, 'Baholar')),
+        h('div', { class: 'group', id: 'adm-ratings' }, infoRow('Oʻrtacha baho', p.ratings.count ? `${p.ratings.avg.toFixed(1)} ★ (${p.ratings.count} ta)` : 'hali yoʻq'), infoRow('1 · 2 · 3 · 4 · 5 yulduz', p.ratings.dist.join(' · '))),
+        s.lowRatings.length ? h('div', { class: 'sec' }, h('h2', {}, 'Soʻnggi past baholar')) : null,
+        s.lowRatings.length ? h('div', { class: 'group', id: 'low-ratings' }, s.lowRatings.map((x) => h('div', { class: 'li' },
+          h('div', { class: 'grow' }, h('div', { class: 't' }, x.topic || ('Buyurtma #' + x.orderId)),
+            h('div', { class: 'hint' }, [x.user.name || ('ID ' + x.user.id), (LANGS[x.lang === 'kaa' ? 'qq' : x.lang] || {}).name, styleName(x.style), when(x.at)].filter(Boolean).join(' · '))),
+          h('b', { class: 'minus' }, '★'.repeat(x.stars))))) : null,
         h('div', { class: 'sec' }, h('h2', {}, 'Hozirgi holat')),
         h('div', { class: 'group' }, infoRow('Foydalanuvchilar', t.users), infoRow('Balanslardagi qoldiq', money(t.balances)), infoRow('Tasdiq kutayotgan toʻlovlar', `${t.pending} ta · ${money(t.pendingAmount)}`)),
         h('p', { class: 'hint', style: 'margin:10px 2px 0' }, 'Daromad — mijozlar xizmatlarga sarflagan pul (qaytarilganlari ayirilgan). Kartaga tushgan — siz tasdiqlagan haqiqiy toʻlovlar. Admin qoʻshgan va referal bonuslari haqiqiy pul emas.'));
     };
     draw();
     api('GET', '/api/admin/summary').then((s) => { a.summary = s; if (state.screen === 'admin' && a.tab === 'sum' && !a.detail) draw(); }).catch((e) => toast(e.message));
+  }
+
+  function adminPromos(box) {
+    const a = state.admin;
+    const draw = () => {
+      box.replaceChildren();
+      const j = a.promos;
+      if (!j) return box.append(...skeletons());
+      const code = h('input', { type: 'text', id: 'promo-code', autocomplete: 'off', autocapitalize: 'characters', maxlength: 20, placeholder: 'Kod (boʻsh qolsa, tasodifiy)', 'aria-label': 'Kod' });
+      const amount = h('input', { type: 'number', inputmode: 'numeric', id: 'promo-amount', min: 1, placeholder: 'Summa', value: j.defaultAmount, 'aria-label': 'Summa' });
+      const limit = h('input', { type: 'number', inputmode: 'numeric', id: 'promo-limit', min: 0, placeholder: 'Limit', 'aria-label': 'Limit (nechta kishi ishlata oladi)' });
+      const create = h('button', { class: 'btn', id: 'promo-create', onclick: async () => {
+        create.disabled = true;
+        try {
+          const r = await api('POST', '/api/admin/promos', { code: code.value, amount: Number(amount.value), maxUses: Number(limit.value || 0) });
+          a.promos = null; haptic('success'); toast(`Yaratildi: ${r.promo.code}`); load();
+        } catch (e) { toast(e.message); haptic('error'); create.disabled = false; }
+      } }, icon('gift', 20), 'Kod yaratish');
+      box.append(h('div', { class: 'card' }, code, h('div', { style: 'height:10px' }), h('div', { class: 'grid2' }, amount, limit), h('div', { style: 'height:12px' }), create),
+        h('p', { class: 'hint', style: 'margin:8px 2px' }, 'Har foydalanuvchi butun umri davomida faqat bitta promo-kod ishlata oladi. Summa — kod bergan bonus. Limit — kodni jami necha kishi ishlata olishi: boʻsh yoki 0 — cheksiz, 1 — bir martalik kod.'));
+      if (!j.promos.length) return box.append(emptyState('Hali promo-kod yoʻq', 'Yuqoridagi shakldan birinchi kodni yarating.'));
+      box.append(h('div', { class: 'group', id: 'promo-list' }, j.promos.map((x) => h('div', { class: 'li' },
+        h('div', { class: 'grow' }, h('div', { class: 't' }, x.code + (x.active ? '' : ' · oʻchiq')), h('div', { class: 'hint' }, `${money(x.amount)} · ${x.used}/${x.maxUses || '∞'} ishlatilgan · ${when(x.createdAt)}`)),
+        h('button', { class: 'btn ghost sm', 'data-toggle': x.code, onclick: async (e) => {
+          const b = e.currentTarget; b.disabled = true;
+          try { await api('POST', `/api/admin/promos/${x.code}/active`, { active: !x.active }); a.promos = null; load(); } catch (err) { toast(err.message); b.disabled = false; }
+        } }, x.active ? 'Oʻchirish' : 'Yoqish')))));
+    };
+    const load = () => api('GET', '/api/admin/promos').then((j) => { a.promos = j; if (state.screen === 'admin' && a.tab === 'promo' && !a.detail) draw(); }).catch((e) => toast(e.message));
+    draw();
+    load();
   }
 
   function adminUsers(box) {
@@ -827,7 +890,7 @@
           confirmBox),
         h('div', { class: 'sec' }, h('h2', {}, 'Umumiy')),
         h('div', { class: 'group' }, infoRow('Sarflagan', money(t.spent)), infoRow('Toʻldirgan', money(t.topups)), infoRow('Tayyor ishlar', t.orders),
-          infoRow('Taklif qilganlar', `${r.invited} (toʻlov qilgan ${r.active})`), infoRow('Referal bonusi', money(r.earned)),
+          infoRow('Taklif qilganlar', `${r.invited} (toʻlov qilgan ${r.active})`), infoRow('Referal bonusi', money(r.earned)), infoRow('Promo-kod', d.promo ? `${d.promo.code} (+${money(d.promo.amount)})` : 'ishlatmagan'),
           infoRow('Uni taklif qilgan', r.by ? `${r.by.name || r.by.id}${r.by.username ? ' @' + r.by.username : ''}` : 'yoʻq')));
       if (d.ledger.length) {
         box.append(h('div', { class: 'sec' }, h('h2', {}, 'Soʻnggi harakatlar')), h('div', { class: 'group' }, d.ledger.map((x) => h('div', { class: 'li' },
