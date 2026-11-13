@@ -15,6 +15,15 @@ function periodStart(kind, now = Date.now()) {
 }
 
 const sum = (arr) => arr.reduce((a, b) => a + b, 0);
+/** Davr ichidagi baholar: soni, oʻrtachasi (1 xona), 1–5 boʻyicha taqsimot. */
+function ratingStats(orders, from) {
+  const dist = [0, 0, 0, 0, 0];
+  for (const o of orders) if (o.rating && o.rating.at >= from) dist[o.rating.stars - 1]++;
+  const count = sum(dist);
+  const avg = count ? Math.round((dist.reduce((a, c, i) => a + c * (i + 1), 0) / count) * 10) / 10 : 0;
+  return { count, avg, dist };
+}
+
 const money = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' soʻm';
 
 /**
@@ -39,13 +48,23 @@ function summary(store, now = Date.now()) {
       topupCount: led.filter((l) => l.type === 'topup').length,
       bonus: by('credit'),
       referral: by('referral'),
+      promo: by('promo'),
       debit: by('debit'),
+      ratings: ratingStats(d.orders, from),
       decks: d.orders.filter((o) => o.type === 'deck' && o.status === 'done' && inRange(o)).length,
       edits: d.orders.filter((o) => o.type === 'edit' && o.status === 'done' && inRange(o)).length,
       defenses: d.orders.filter((o) => o.defenseStatus === 'done' && (o.defenseStartedAt || o.createdAt) >= from).length,
       newUsers: Object.values(d.users).filter((u) => u.createdAt >= from).length,
     };
   }
+  out.lowRatings = d.orders
+    .filter((o) => o.rating && o.rating.stars <= 2)
+    .sort((a, b) => b.rating.at - a.rating.at)
+    .slice(0, 8)
+    .map((o) => {
+      const u = d.users[String(o.userId)] || {};
+      return { orderId: o.id, type: o.type, topic: o.topic || '', lang: o.lang || '', style: o.style || '', stars: o.rating.stars, at: o.rating.at, user: { id: o.userId, name: u.name || '' } };
+    });
   const pending = d.payments.filter((p) => p.status === 'pending');
   out.totals = {
     users: Object.keys(d.users).length,
@@ -119,7 +138,8 @@ function userDetail(store, id) {
       by: ref ? { id: ref.id, name: ref.name || '', username: ref.username || '' } : null,
       ...store.referralStats(u.id),
     },
-    totals: { orders: agg.orders, spent: agg.spent, topups: agg.topups, bonus: by('credit'), referral: by('referral'), debit: by('debit'), refunded: by('refund') },
+    totals: { orders: agg.orders, spent: agg.spent, topups: agg.topups, bonus: by('credit'), referral: by('referral'), promo: by('promo'), debit: by('debit'), refunded: by('refund') },
+    promo: u.promo || null,
     orders: store.db.orders.filter((o) => o.userId === u.id).slice(-8).reverse()
       .map((o) => ({ id: o.id, type: o.type, topic: o.topic || '', status: o.status, price: o.price || 0, createdAt: o.createdAt, defense: o.defenseStatus || 'none' })),
     ledger: led.slice(-20).reverse().map((l) => ({ id: l.id, type: l.type, amount: l.amount, note: l.note, ts: l.ts })),

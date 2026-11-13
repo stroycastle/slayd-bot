@@ -11,6 +11,8 @@ const { PALETTES, STYLES } = require('./deck');
 const { extractText, clip } = require('./extract');
 const adminTools = require('./admin');
 const referral = require('./referral');
+const promo = require('./promo');
+const rating = require('./rating');
 
 const STATIC_DIR = path.join(__dirname, '..', 'miniapp');
 const PREVIEW_DIR = path.join(__dirname, '..', 'assets', 'previews');
@@ -89,9 +91,10 @@ function createWebHandler({ store, bot }) {
     id: o.id, topic: o.topic, slides: o.finalSlides || o.slides, lang: toPublicLang(o.lang), color: o.color, style: o.style || null,
     status: o.status, price: o.price, createdAt: o.createdAt, error: o.status === 'failed' ? 'Xatolik, pul qaytarildi' : undefined,
     defense: o.defenseStatus || 'none', // himoya savol-javoblari: none | processing | done | failed
+    rating: o.rating ? o.rating.stars : null, // 1–5 yoki null (baholanmagan)
   });
   const publicPayment = (p) => ({ id: p.id, amount: p.amount, status: p.status, createdAt: p.createdAt });
-  const publicMe = (u) => ({ id: u.id, name: u.name, username: u.username, balance: u.balance, profile: u.profile || {}, profileMissing: profileMissing(u.profile) || null, isAdmin: config.ADMIN_IDS.includes(u.id) });
+  const publicMe = (u) => ({ id: u.id, name: u.name, username: u.username, balance: u.balance, profile: u.profile || {}, profileMissing: profileMissing(u.profile) || null, isAdmin: config.ADMIN_IDS.includes(u.id), promoUsed: !!u.promo });
   const requireAdmin = (uid) => { if (!config.ADMIN_IDS.includes(uid)) throw new HttpError(403, 'forbidden', 'Bu boʻlim faqat admin uchun.'); };
 
   async function route(req, url) {
@@ -174,6 +177,19 @@ function createWebHandler({ store, bot }) {
       return r.body;
     }
 
+    mm = p.match(/^\/api\/orders\/(\d+)\/rating$/);
+    if (m === 'POST' && mm) {
+      rateLimit(uid, 'rate', 20, 60000);
+      const b = await readJson(req);
+      const o = store.getOrder(mm[1]);
+      if (!o || o.userId !== uid || o.status !== 'done') throw new HttpError(404, 'not_found', 'Buyurtma topilmadi yoki hali tayyor emas.');
+      const stars = Number(b.stars);
+      if (!Number.isInteger(stars) || stars < 1 || stars > 5) throw new HttpError(400, 'invalid', 'Baho 1 dan 5 gacha boʻlishi kerak.');
+      store.rateOrder(o.id, uid, stars);
+      if (stars <= 2) for (const id of config.ADMIN_IDS) bot && bot.telegram && bot.telegram.sendMessage(id, rating.lowNotice(o, store.getUser(uid), stars)).catch(() => {});
+      return { ok: true, stars };
+    }
+
     if (m === 'GET' && p === '/api/payments') {
       const list = store.db.payments.filter((x) => x.userId === uid).slice(-20).reverse().map(publicPayment);
       const ledger = store.db.ledger.filter((x) => x.userId === uid).slice(-30).reverse().map((x) => ({ id: x.id, type: x.type, amount: x.amount, note: x.note, ts: x.ts }));
@@ -224,6 +240,15 @@ function createWebHandler({ store, bot }) {
       return { ok: true };
     }
 
+    // ---------- promo-kod ----------
+    if (m === 'POST' && p === '/api/promo') {
+      rateLimit(uid, 'promo', 10, 60000);
+      const b = await readJson(req);
+      const r = promo.redeem(store, uid, b.code);
+      if (!r.ok) throw new HttpError(r.code, r.error, r.message);
+      return { ok: true, amount: r.amount, balance: r.balance };
+    }
+
     // ---------- referal ----------
     if (m === 'GET' && p === '/api/referral') {
       const on = config.REFERRAL_PERCENT > 0;
@@ -235,6 +260,21 @@ function createWebHandler({ store, bot }) {
       requireAdmin(uid);
       rateLimit(uid, 'admin', 120, 60000);
       if (m === 'GET' && p === '/api/admin/summary') return adminTools.summary(store);
+      if (m === 'GET' && p === '/api/admin/promos') return { promos: store.listPromos().map(promo.publicPromo), defaultAmount: config.PROMO_AMOUNT };
+      if (m === 'POST' && p === '/api/admin/promos') {
+        rateLimit(uid, 'adminpromo', 30, 60000);
+        const b = await readJson(req);
+        const r = promo.create(store, uid, b);
+        if (!r.ok) throw new HttpError(r.code, r.error, r.message);
+        return { ok: true, promo: promo.publicPromo(r.promo) };
+      }
+      mm = p.match(/^\/api\/admin\/promos\/([A-Za-z0-9_-]{3,20})\/active$/);
+      if (m === 'POST' && mm) {
+        const b = await readJson(req);
+        const pr = store.setPromoActive(promo.normalize(mm[1]), !!b.active);
+        if (!pr) throw new HttpError(404, 'not_found', 'Kod topilmadi.');
+        return { ok: true, promo: promo.publicPromo(pr) };
+      }
       if (m === 'GET' && p === '/api/admin/users') {
         const sp = url.searchParams;
         return adminTools.listUsers(store, { q: String(sp.get('q') || '').slice(0, 60), sort: sp.get('sort'), limit: sp.get('limit'), offset: sp.get('offset') });

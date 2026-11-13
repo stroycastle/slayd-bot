@@ -18,11 +18,12 @@ class Store {
     this._busy = null;
     this._backoff = 0;
     fs.mkdirSync(dir, { recursive: true });
-    this.db = { seq: { order: 0, payment: 0, ledger: 0 }, users: {}, orders: [], payments: [], ledger: [] };
+    this.db = { seq: { order: 0, payment: 0, ledger: 0 }, users: {}, orders: [], payments: [], ledger: [], promos: {} };
     if (fs.existsSync(this.file)) {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       this.db = Object.assign(this.db, raw);
       this.db.seq = Object.assign({ order: 0, payment: 0, ledger: 0 }, raw.seq || {});
+      this.db.promos = raw.promos || {};
     }
   }
 
@@ -51,6 +52,7 @@ class Store {
       const n = Number(id);
       for (let i = this.db.ledger.length - 1; i >= 0 && !data; i--) if (this.db.ledger[i].id === n) data = this.db.ledger[i];
     }
+    else if (kind === 'promo') data = this.db.promos[id];
     else if (kind === 'meta') data = this.db.seq;
     return data ? { kind, id, data } : null;
   }
@@ -125,16 +127,18 @@ class Store {
       for (const o of d.orders) this._mark('order', o.id);
       for (const p of d.payments) this._mark('payment', p.id);
       for (const l of d.ledger) this._mark('ledger', l.id);
+      for (const c of Object.keys(d.promos || {})) this._mark('promo', c);
       this._mark('meta', 'seq');
       await this.flush();
       return;
     }
-    const db = { seq: { order: 0, payment: 0, ledger: 0 }, users: {}, orders: [], payments: [], ledger: [] };
+    const db = { seq: { order: 0, payment: 0, ledger: 0 }, users: {}, orders: [], payments: [], ledger: [], promos: {} };
     for (const r of rows) {
       if (r.kind === 'user') db.users[String(r.id)] = r.data;
       else if (r.kind === 'order') db.orders.push(r.data);
       else if (r.kind === 'payment') db.payments.push(r.data);
       else if (r.kind === 'ledger') db.ledger.push(r.data);
+      else if (r.kind === 'promo') db.promos[String(r.id)] = r.data;
       else if (r.kind === 'meta' && r.id === 'seq') Object.assign(db.seq, r.data);
     }
     db.orders.sort(byId);
@@ -214,6 +218,62 @@ class Store {
     this._ledger(userId, 'debit', amount, note);
     this.save();
     return true;
+  }
+
+  // ---------- promo-kodlar ----------
+  getPromo(code) {
+    return this.db.promos[code] || null;
+  }
+  listPromos() {
+    return Object.values(this.db.promos).sort((a, b) => b.createdAt - a.createdAt);
+  }
+  /** Yangi kod. Mavjud boʻlsa null. maxUses 0 = cheksiz. */
+  addPromo({ code, amount, maxUses = 0, by = null }) {
+    if (this.db.promos[code]) return null;
+    const p = { code, amount, maxUses, used: 0, active: true, createdAt: Date.now(), by };
+    this.db.promos[code] = p;
+    this._mark('promo', code);
+    this.save();
+    return p;
+  }
+  setPromoActive(code, active) {
+    const p = this.getPromo(code);
+    if (!p) return null;
+    p.active = !!active;
+    this._mark('promo', code);
+    this.save();
+    return p;
+  }
+  /**
+   * Foydalanuvchi promo-kodni qoʻllaydi. Bir foydalanuvchi butun umri davomida faqat bitta promo-kod ishlata oladi.
+   * Qaytaradi: { ok:true, amount, balance } yoki { ok:false, error: 'user' | 'used' | 'invalid' | 'exhausted' }.
+   * 'used' tekshiruvi birinchi: ishlatgan foydalanuvchi kodlarning mavjudligini bilib ololmaydi.
+   */
+  redeemPromo(userId, code) {
+    const u = this.getUser(userId);
+    if (!u) return { ok: false, error: 'user' };
+    if (u.promo) return { ok: false, error: 'used' };
+    const p = this.getPromo(code);
+    if (!p || !p.active) return { ok: false, error: 'invalid' };
+    if (p.maxUses > 0 && p.used >= p.maxUses) return { ok: false, error: 'exhausted' };
+    p.used += 1;
+    u.promo = { code, at: Date.now(), amount: p.amount };
+    this._mark('promo', code);
+    this._mark('user', u.id);
+    this.credit(u.id, p.amount, `Promo-kod: ${code}`, 'promo');
+    return { ok: true, amount: p.amount, balance: u.balance };
+  }
+
+  // ---------- baholar ----------
+  /** Buyurtmani 1–5 yulduz bilan baholaydi (qayta baholash mumkin). Faqat egasi, faqat tayyor buyurtma. */
+  rateOrder(orderId, userId, stars) {
+    const o = this.getOrder(orderId);
+    const n = Number(stars);
+    if (!o || o.userId !== userId || o.status !== 'done' || !Number.isInteger(n) || n < 1 || n > 5) return null;
+    o.rating = { stars: n, at: Date.now() };
+    this._mark('order', o.id);
+    this.save();
+    return o;
   }
 
   // ---------- buyurtmalar ----------

@@ -3,6 +3,7 @@ const { Markup } = require('telegraf');
 const config = require('./config');
 const service = require('./service');
 const { PALETTES, STYLE_KEYS, DEFAULT_STYLE, randomStyle } = require('./deck');
+const rating = require('./rating');
 
 // API shartnomasidagi til kodlari (mini ilova `qq` yuboradi); botda ichki kod `kaa` (qoraqalpoq, lotin)
 const LANGS = ['uz', 'uzc', 'ru', 'qq'];
@@ -66,6 +67,7 @@ function createOrders({ store, bot }) {
         msg += `\n\nTopshirishdan oldin matn va adabiyotlar roʻyxatini oʻqib, tekshirib chiqing.\nOʻzgartirish kerak boʻlsa botdagi «✏️ Tahrirlash» tugmasi (${fmt(config.PRICE_EDIT)}).`;
         msg += `\n\n🎓 Himoyaga tayyorlanish: Ilovadagi «Tarix» boʻlimida oʻqituvchi beradigan savollar va javoblarni olishingiz mumkin (${config.PRICE_DEFENSE > 0 ? fmt(config.PRICE_DEFENSE) : 'bepul'}).`;
         await bot.telegram.sendMessage(userId, msg);
+        rating.prompt(bot, userId, order.id);
       } catch (e) {
         // fayl yuborilmadi (masalan, bot bloklangan): buyurtma tayyor, ilovadan qayta yuborish mumkin
         store.updateOrder(order.id, { deliveryError: String(e.message || e).slice(0, 200) });

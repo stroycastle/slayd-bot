@@ -68,6 +68,8 @@ module.exports = {
   // Referal dasturi: taklif qilingan foydalanuvchining har bir TASDIQLANGAN toʻldirishidan shuncha foiz taklif qilganga balansga qoʻshiladi.
   // 0 boʻlsa dastur oʻchadi. Bonus faqat haqiqiy toʻlovdan keyin beriladi, shuning uchun soxta akkauntlar zarar keltirmaydi.
   REFERRAL_PERCENT: Math.min(50, Math.max(0, num(process.env.REFERRAL_PERCENT, 10))),
+  // Promo-kod: admin kod yaratganda summa koʻrsatilmasa, shuncha soʻm beriladi. Har foydalanuvchi bir umr faqat bitta promo-kod ishlata oladi.
+  PROMO_AMOUNT: num(process.env.PROMO_AMOUNT, 3000),
   // Taklif havolasi uchun bot nomi (@siz). Bot ishga tushgach, haqiqiy nom Telegramdan olinadi.
   BOT_USERNAME: String(process.env.BOT_USERNAME || 'Space_deckbot').replace(/^@/, '').trim(),
   MIN_SLIDES: 8,

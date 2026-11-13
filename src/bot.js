@@ -9,6 +9,8 @@ const { PALETTES, STYLES, STYLE_KEYS, styleOf, randomStyle } = require('./deck')
 const { extractText, clip } = require('./extract');
 const referral = require('./referral');
 const admin = require('./admin');
+const promo = require('./promo');
+const rating = require('./rating');
 
 const BTN_NEW = '📊 Yangi taqdimot';
 const BTN_EDIT = '✏️ Tahrirlash';
@@ -126,11 +128,30 @@ function createBot({ store, download }) {
       `<b>Narxlar</b>\n${priceLine()}\n• Tahrir: ${fmt(config.PRICE_EDIT)}\n\n` +
         `<b>Qanday ishlaydi</b>\n1. Balansni toʻldirasiz (kartaga oʻtkazib, chekni yuborasiz).\n2. «${BTN_NEW}» — mavzu, slaydlar soni, til, rang, koʻrinish (20 xil), maʼruza matni.\n3. Taqdimot tayyor boʻlgach .pptx va PDF keladi.\n4. Oʻzgartirish kerak boʻlsa «${BTN_EDIT}».\n\n` +
         `<b>Muhim</b>\nMatnni AI yozadi. Topshirishdan oldin oʻqib chiqing, faktlar va adabiyotlar roʻyxatini tekshiring, kerak boʻlsa oʻz soʻzingiz bilan moslang.\n\n` +
-        `<b>Savol yoki muammo</b>\n/murojaat <i>matn</i> — adminga yuboriladi.` +
+        `<b>Promo-kod</b>\n/promo <i>KOD</i> — bonus oling (bir foydalanuvchi bir marta).\n\n<b>Savol yoki muammo</b>\n/murojaat <i>matn</i> — adminga yuboriladi.` +
         (config.WEBAPP_URL ? `\n\n<a href="${esc(config.WEBAPP_URL)}/privacy.html">Maxfiylik siyosati</a>` : ''),
       { ...HTML, disable_web_page_preview: true }
     )
   );
+
+  // ------------------------------------------------------------ baholash (1–5 yulduz)
+  bot.action(/^rate:(\d+):([1-5])$/, async (ctx) => {
+    const n = Number(ctx.match[2]);
+    const o = store.rateOrder(ctx.match[1], ctx.from.id, n);
+    if (!o) return ctx.answerCbQuery('Buyurtma topilmadi.').catch(() => {});
+    await ctx.answerCbQuery('Rahmat!').catch(() => {});
+    await ctx.editMessageText(rating.thanks(n)).catch(() => {});
+    if (n <= 2) notifyAdmins(rating.lowNotice(o, store.getUser(ctx.from.id), n));
+  });
+
+  // ------------------------------------------------------------ promo-kod
+  bot.command('promo', (ctx) => {
+    const code = ctx.message.text.replace(/^\/promo(@\w+)?\s*/i, '').trim();
+    if (!code) return ctx.reply(`Promo-kodingiz bormi? Shunday yozing:\n/promo KODINGIZ\n\nBir foydalanuvchi bitta promo-kod ishlata oladi.`, menu);
+    const r = promo.redeem(store, ctx.from.id, code);
+    if (!r.ok) return ctx.reply(r.message, menu);
+    return ctx.reply(`🎉 Promo-kod qabul qilindi! Balansingizga ${fmt(r.amount)} qoʻshildi. Hozirgi balans: ${fmt(r.balance)}.`, menu);
+  });
 
   // adminga murojaat (savol, toʻlov muammosi, maʼlumotni oʻchirish soʻrovi). Bir foydalanuvchi 30 soniyada bir marta yozishi mumkin.
   const lastContact = new Map();
@@ -404,6 +425,7 @@ function createBot({ store, download }) {
       if (refund) msg += ` Slayd soni kamroq chiqqani uchun ${fmt(refund)} balansingizga qaytarildi.`;
       msg += `\n\nTopshirishdan oldin matn va adabiyotlar roʻyxatini oʻqib, tekshirib chiqing.\nOʻzgartirish kerak boʻlsa «${BTN_EDIT}» (${fmt(config.PRICE_EDIT)}).`;
       await bot.telegram.sendMessage(chatId, msg, menu);
+      rating.prompt(bot, chatId, order.id);
     } catch (e) {
       console.error('Taqdimot xatosi:', e);
       store.updateOrder(order.id, { status: 'failed', error: String(e.message || e).slice(0, 300) });
@@ -458,6 +480,7 @@ function createBot({ store, download }) {
       store.updateOrder(edit.id, { status: 'done' });
       await sendFiles(chatId, service.fileBase(parent.topic), res);
       await bot.telegram.sendMessage(chatId, `✅ ${res.reply || 'Tahrir kiritildi.'}`, menu);
+      rating.prompt(bot, chatId, edit.id);
     } catch (e) {
       console.error('Tahrir xatosi:', e);
       store.updateOrder(edit.id, { status: 'failed', error: String(e.message || e).slice(0, 300) });
@@ -581,6 +604,28 @@ function createBot({ store, download }) {
   };
   bot.command('qosh', adjustCmd('add'));
   bot.command('ayir', adjustCmd('sub'));
+  // promo-kodlar: /yangipromo [KOD] [summa] [limit], /promolar, /promooff KOD, /promoon KOD
+  bot.command('yangipromo', (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    const [, code, amount, maxUses] = ctx.message.text.trim().split(/\s+/);
+    const r = promo.create(store, ctx.from.id, { code, amount, maxUses });
+    if (!r.ok) return ctx.reply(`${r.message}\nFormat: /yangipromo [KOD] [summa] [limit]  (kod boʻsh qolsa, tasodifiy; limit 0 — cheksiz)`);
+    const p = r.promo;
+    return ctx.reply(`✅ Promo-kod yaratildi: ${p.code}\nBonus: ${fmt(p.amount)} · limit: ${p.maxUses || 'cheksiz'}\nMijoz botda yozadi: /promo ${p.code}`);
+  });
+  bot.command('promolar', (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    const list = store.listPromos();
+    if (!list.length) return ctx.reply('Hali promo-kod yoʻq. Yaratish: /yangipromo');
+    return ctx.reply(list.slice(0, 30).map((p) => `${p.active ? '🟢' : '⚪️'} ${p.code} — ${fmt(p.amount)} · ${p.used}/${p.maxUses || '∞'}`).join('\n'));
+  });
+  const promoActive = (on) => (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    const p = store.setPromoActive(promo.normalize(ctx.message.text.trim().split(/\s+/)[1]), on);
+    return ctx.reply(p ? `${p.code}: ${on ? 'yoqildi' : 'oʻchirildi'}.` : 'Kod topilmadi. Format: /promooff KOD');
+  };
+  bot.command('promooff', promoActive(false));
+  bot.command('promoon', promoActive(true));
   bot.command('user', (ctx) => {
     if (!isAdmin(ctx.from.id)) return;
     const arg = ctx.message.text.trim().split(/\s+/)[1] || '';
