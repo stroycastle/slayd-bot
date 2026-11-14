@@ -258,3 +258,11 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .star { background: none; border: 0; padding: 4px 3px; font-size: 26px; line-height: 1; color: var(--line); cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .star.on { color: #f5a524; }
 .star:active { transform: scale(.9); }
+
+/* referat / kurs ishi miniatyurasi: oq varaq, matn chiziqlari */
+.thumb.doc { aspect-ratio: 3/4; width: 46px; background: #fff; border: 1px solid var(--line); }
+.thumb.doc i { background: #9aa4ae; height: 4%; left: 14%; }
+.thumb.doc .l1 { top: 18%; width: 52%; background: #3d4a57; height: 6%; }
+.thumb.doc .l2 { top: 36%; width: 72%; }
+.thumb.doc .l3 { top: 48%; width: 72%; }
+.thumb.doc .l4 { top: 60%; width: 44%; }

@@ -34,6 +34,8 @@
   const state = {
     me: null, cfg: null, screen: 'home', orders: [], ordersLoaded: false, payments: [], ledger: [], pay: null, topupAmount: 0, poll: null, tick: null,
     wiz: { step: 1, topic: '', slides: 12, lang: 'uz', color: 'green', style: 'random', lecture: '', references: '', fileName: '', manual: false },
+    // referat / kurs ishi buyurtmasi
+    doc: { step: 1, kind: 'referat', topic: '', subject: '', pages: 12, lang: 'uz', lecture: '', references: '', fileName: '', manual: false },
     lastOrder: null,
     // himoyaga tayyorgarlik: orderId, data (server javobi), mode: 'list' | 'practice', practice (mashq holati)
     defense: { orderId: null, data: null, mode: 'list', practice: null },
@@ -145,12 +147,12 @@
   }
   function render() {
     view.replaceChildren();
-    view.className = ['wizard', 'success', 'defense', 'referral', 'admin'].includes(state.screen) ? 'flow' : '';
+    view.className = ['wizard', 'docwiz', 'success', 'defense', 'referral', 'admin'].includes(state.screen) ? 'flow' : '';
     view.style.animation = 'none'; void view.offsetWidth; view.style.animation = '';
     document.querySelectorAll('.foot').forEach((n) => n.remove());
     renderTabs();
     if (!state.me) return;
-    ({ home: screenHome, history: screenHistory, balance: screenBalance, profile: screenProfile, wizard: screenWizard, success: screenSuccess, defense: screenDefense, referral: screenReferral, admin: screenAdmin })[state.screen]();
+    ({ home: screenHome, history: screenHistory, balance: screenBalance, profile: screenProfile, wizard: screenWizard, docwiz: screenDocWizard, success: screenSuccess, defense: screenDefense, referral: screenReferral, admin: screenAdmin })[state.screen]();
     if ((state.screen === 'home' || state.screen === 'history') && state.orders.some((o) => o.status === 'processing')) startPolling();
   }
 
@@ -159,6 +161,8 @@
     state.me = j.user; state.cfg = j.config;
     const w = state.wiz;
     w.slides = Math.min(Math.max(w.slides, j.config.minSlides), j.config.maxSlides);
+    const dk = j.config.docs && j.config.docs[state.doc.kind];
+    if (dk) state.doc.pages = Math.min(Math.max(state.doc.pages, dk.min), dk.max);
   }
   async function loadOrders() {
     const j = await api('GET', '/api/orders');
@@ -167,20 +171,27 @@
   }
 
   // ---------- jarayon (taraqqiyot) ----------
-  function phases() {
-    return ['Reja tuzilmoqda', 'Matn yozilmoqda', 'Slaydlar yigʻilmoqda'];
+  const isDoc = (o) => o && o.type === 'doc';
+  const DOC_NAME = { referat: 'Referat', kurs: 'Kurs ishi' };
+  function phases(doc) {
+    return doc ? ['Reja tuzilmoqda', 'Boʻlimlar yozilmoqda', 'Hujjat va PDF yigʻilmoqda'] : ['Reja tuzilmoqda', 'Matn yozilmoqda', 'Slaydlar yigʻilmoqda'];
+  }
+  // taxminiy davomiylik (daqiqa): taqdimot 1–3, referat 3–8, kurs ishi 6–15
+  const etaText = (o) => (!isDoc(o) ? 'Odatda 1–3 daqiqa' : o.docKind === 'kurs' ? 'Odatda 6–15 daqiqa' : 'Odatda 3–8 daqiqa');
+  function docThumb() {
+    return h('div', { class: 'thumb doc' }, h('i', { class: 'l1' }), h('i', { class: 'l2' }), h('i', { class: 'l3' }), h('i', { class: 'l4' }));
   }
   function progressCard(o) {
-    const el = h('div', { class: 'progress', 'data-prog': o.id, 'data-created': o.createdAt, 'data-lang': o.lang });
-    el.append(h('div', { class: 'row' }, thumb(o.color), h('div', { class: 'grow' }, h('div', { class: 'ttl', style: 'font-weight:650;font-size:15px' }, o.topic), h('div', { class: 'hint' }, `${o.slides} slayd · Odatda 1–3 daqiqa`))),
+    const el = h('div', { class: 'progress', 'data-prog': o.id, 'data-created': o.createdAt, 'data-lang': o.lang, 'data-doc': isDoc(o) ? (o.docKind || 'referat') : null });
+    el.append(h('div', { class: 'row' }, isDoc(o) ? docThumb() : thumb(o.color), h('div', { class: 'grow' }, h('div', { class: 'ttl', style: 'font-weight:650;font-size:15px' }, o.topic), h('div', { class: 'hint' }, `${isDoc(o) ? `${DOC_NAME[o.docKind] || 'Hujjat'} · ${o.pages || o.slides} bet` : `${o.slides} slayd`} · ${etaText(o)}`))),
       h('div', { class: 'bar' }, h('b', { style: 'width:8%' })), h('div', { class: 'steps' }));
     paintProgress(el);
     return el;
   }
   function paintProgress(el) {
-    const created = Number(el.dataset.created), ph = phases();
+    const created = Number(el.dataset.created), doc = el.dataset.doc, ph = phases(!!doc);
     const sec = Math.max(0, (Date.now() - created) / 1000);
-    const per = 28;
+    const per = doc ? (doc === 'kurs' ? 200 : 110) : 28;
     const idx = Math.min(ph.length - 1, Math.floor(sec / per));
     const pct = Math.min(94, Math.round(100 * (1 - Math.exp(-sec / (per * ph.length * 0.7)))) + 6);
     el.querySelector('.bar b').style.width = pct + '%';
@@ -198,7 +209,7 @@
       let changed = false;
       for (const o of state.orders) {
         if (!before.has(o.id)) continue;
-        if (o.status === 'done') { haptic('success'); toast('Taqdimot tayyor! Fayllar chatga yuborildi.'); changed = true; }
+        if (o.status === 'done') { haptic('success'); toast(isDoc(o) ? `${DOC_NAME[o.docKind] || 'Hujjat'} tayyor! Fayllar chatga yuborildi.` : 'Taqdimot tayyor! Fayllar chatga yuborildi.'); changed = true; }
         if (o.status === 'failed') { haptic('error'); toast('Xatolik chiqdi, pul qaytarildi.'); changed = true; }
       }
       if (changed || !state.orders.some((o) => o.status === 'processing')) { clearInterval(state.poll); clearInterval(state.tick); state.poll = state.tick = null; render(); }
@@ -207,15 +218,16 @@
 
   // ---------- buyurtma qatori ----------
   function orderRow(o, withResend) {
+    const doc = isDoc(o);
     const badge = h('span', { class: 'badge ' + o.status }, o.status === 'processing' ? h('span', { class: 'dot-spin' }) : null, STATUS[o.status] || o.status);
-    return h('div', { class: 'order' }, thumb(o.color),
+    return h('div', { class: 'order' }, doc ? docThumb() : thumb(o.color),
       h('div', { class: 'grow' },
         h('div', { class: 'row', style: 'align-items:flex-start;gap:8px' }, h('div', { class: 'ttl grow' }, o.topic), badge),
-        h('div', { class: 'meta' }, h('span', {}, `${o.slides} slayd`), h('span', {}, LANGS[o.lang] ? LANGS[o.lang].name : o.lang), styleName(o.style) ? h('span', {}, styleName(o.style)) : null, h('span', {}, money(o.price)), h('span', {}, when(o.createdAt))),
+        h('div', { class: 'meta' }, h('span', {}, doc ? `${DOC_NAME[o.docKind] || 'Hujjat'} · ${o.pages || o.slides} bet` : `${o.slides} slayd`), h('span', {}, LANGS[o.lang] ? LANGS[o.lang].name : o.lang), !doc && styleName(o.style) ? h('span', {}, styleName(o.style)) : null, h('span', {}, money(o.price)), h('span', {}, when(o.createdAt))),
         o.error ? h('div', { class: 'hint minus', style: 'margin-top:4px' }, o.error) : null,
         withResend && o.status === 'done' ? h('div', { class: 'acts' },
           h('button', { class: 'btn ghost sm', onclick: (e) => resend(o.id, e.currentTarget) }, icon('send', 16), 'Chatga qayta yuborish'),
-          h('button', { class: 'btn ghost sm', 'data-defense': o.id, onclick: () => openDefense(o.id) }, icon('shield', 16), defenseLabel(o))) : null,
+          doc ? null : h('button', { class: 'btn ghost sm', 'data-defense': o.id, onclick: () => openDefense(o.id) }, icon('shield', 16), defenseLabel(o))) : null,
         withResend && o.status === 'done' && o.type !== 'edit' ? ratingRow(o) : null));
   }
   // 1–5 yulduz: bosilganda saqlanadi, qayta bosib oʻzgartirish mumkin
@@ -260,6 +272,10 @@
       h('p', {}, 'Mavzuni yozing. 1–3 daqiqada tayyor .pptx va PDF faylni chatda oling.'),
       h('button', { class: 'btn white', onclick: () => { state.wiz.step = 1; go('wizard'); } }, icon('spark', 20), 'Boshlash'),
       h('div', { class: 'chips-in' }, h('span', {}, 'Maʼruza asosida'), h('span', {}, '4 ta til'), h('span', {}, 'Titul varagʻi'))));
+    view.append(h('button', { class: 'card flat teaser live pressable', id: 'doc-card', style: 'margin-top:12px', onclick: () => openDoc() }, h('div', { class: 'ico' }, icon('file', 22)),
+      h('div', { class: 'grow' }, h('div', { style: 'font-weight:650' }, 'Referat va kurs ishi'),
+        h('div', { class: 'hint' }, `Word (.docx) va PDF · referat ${money(state.cfg.priceReferat)}, kurs ishi ${money(state.cfg.priceKurs)}`)),
+      icon('chev', 20)));
 
     const box = h('div', {});
     view.append(box);
@@ -297,7 +313,7 @@
 
   // ---------- 2. Tarix ----------
   function screenHistory() {
-    view.append(h('div', { class: 'title' }, 'Buyurtmalarim'), h('p', { class: 'sub' }, 'Tayyor taqdimotlarni chatga qayta yuborishingiz mumkin.'));
+    view.append(h('div', { class: 'title' }, 'Buyurtmalarim'), h('p', { class: 'sub' }, 'Tayyor ishlarni chatga qayta yuborishingiz mumkin.'));
     const box = h('div', {});
     view.append(box);
     const draw = () => {
@@ -306,7 +322,7 @@
       const active = state.orders.filter((o) => o.status === 'processing');
       if (active.length) box.append(...active.map(progressCard));
       const rest = state.orders.filter((o) => o.status !== 'processing');
-      if (!rest.length && !active.length) box.append(emptyState('Hozircha buyurtma yoʻq', 'Birinchi taqdimotingizni yasang.', h('button', { class: 'btn sm', onclick: () => { state.wiz.step = 1; go('wizard'); } }, 'Yasash')));
+      if (!rest.length && !active.length) box.append(emptyState('Hozircha buyurtma yoʻq', 'Birinchi ishingizni yasang.', h('button', { class: 'btn sm', onclick: () => { state.wiz.step = 1; go('wizard'); } }, 'Yasash')));
       else if (rest.length) box.append(h('div', { class: 'group' }, rest.map((o) => orderRow(o, true))));
     };
     draw();
@@ -414,8 +430,8 @@
     document.body.append(ov);
   }
 
-  async function onLectureFile(e) {
-    const w = state.wiz, file = e.target.files && e.target.files[0];
+  async function onLectureFile(e, target) {
+    const w = target || state.wiz, file = e.target.files && e.target.files[0];
     if (!file) return;
     const maxMb = Math.round(state.cfg.maxExtract / 1048576);
     if (file.size > state.cfg.maxExtract) return toast(`Fayl ${maxMb} MB dan katta.`);
@@ -449,12 +465,119 @@
     }
   }
 
+  // ---------- Referat / kurs ishi ----------
+  function openDoc() { state.doc.step = 1; go('docwiz'); }
+  const docCfg = () => state.cfg.docs[state.doc.kind];
+  const docPrice = () => (state.doc.kind === 'kurs' ? state.cfg.priceKurs : state.cfg.priceReferat);
+
+  function screenDocWizard() {
+    const w = state.doc, c = state.cfg, me = state.me;
+    const head = h('div', { class: 'flow-head' },
+      h('button', { class: 'icon-btn', 'aria-label': w.step === 1 ? 'Yopish' : 'Orqaga', onclick: () => (w.step === 1 ? go('home') : (w.step--, render())) }, icon(w.step === 1 ? 'close' : 'back', 24)),
+      h('div', { class: 'prog' }, [1, 2, 3].map((i) => h('i', { class: i <= w.step ? 'on' : '' }))),
+      h('div', { class: 'stepno' }, `${w.step}/3`));
+    view.append(head);
+    const foot = h('div', { class: 'foot' }, h('div', { class: 'in' }));
+    const fin = foot.firstChild;
+
+    if (w.step === 1) {
+      view.append(h('div', { class: 'title' }, 'Turi va mavzu'), h('p', { class: 'sub' }, 'Nima yozamiz?'));
+      const kinds = [['referat', 'Referat', c.priceReferat, `${c.docs.referat.min}–${c.docs.referat.max} bet`], ['kurs', 'Kurs ishi', c.priceKurs, `${c.docs.kurs.min}–${c.docs.kurs.max} bet · boblar va paragraflar bilan`]];
+      const list = h('div', {});
+      kinds.forEach(([k, name, price, sub]) => list.append(h('button', { class: 'opt pressable' + (w.kind === k ? ' on' : ''), 'data-kind': k, 'aria-pressed': w.kind === k, onclick: () => {
+        w.kind = k; w.pages = Math.min(Math.max(w.kind === k && w.pages >= c.docs[k].min && w.pages <= c.docs[k].max ? w.pages : c.docs[k].def, c.docs[k].min), c.docs[k].max); haptic('select'); render();
+      } }, h('div', { class: 'grow' }, h('div', { class: 'nm' }, `${name} · ${money(price)}`), h('div', { class: 'hint' }, sub)), h('span', { class: 'radio' }, icon('check', 14, 3.4)))));
+      view.append(list);
+      view.append(h('label', { class: 'field-l' }, 'Mavzu'));
+      const ta = h('textarea', { id: 'topic', maxlength: 300, placeholder: 'Masalan: Ingliz tilidagi frazeologik birliklarning semantik xususiyatlari', 'aria-label': 'Mavzu' }, w.topic);
+      const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.max(104, ta.scrollHeight) + 'px'; };
+      ta.addEventListener('input', () => { w.topic = ta.value; fit(); upd(); });
+      view.append(ta);
+      view.append(h('label', { class: 'field-l' }, 'Fan nomi (ixtiyoriy)'),
+        h('input', { id: 'subject', type: 'text', maxlength: 100, placeholder: 'Masalan: Tilshunoslik', value: w.subject, 'aria-label': 'Fan nomi', oninput: (e) => { w.subject = e.target.value; } }),
+        h('div', { class: 'hint', style: 'margin:6px 2px 0' }, 'Titul varagʻida «Fan» qatorida chiqadi.'));
+      const nextBtn = h('button', { class: 'btn', onclick: () => { if (w.topic.trim().length < 3) { toast('Mavzuni yozing.'); haptic('error'); return; } w.step = 2; render(); window.scrollTo(0, 0); } }, 'Davom etish', icon('arrow', 20));
+      var upd = () => { nextBtn.disabled = w.topic.trim().length < 3; };
+      fin.append(nextBtn); upd();
+      setTimeout(fit, 0);
+    }
+
+    if (w.step === 2) {
+      const dk = docCfg();
+      view.append(h('div', { class: 'title' }, 'Hajm va til'), h('p', { class: 'sub' }, 'Betlar soni A4 formatda: Times New Roman 14, 1,5 oraliq.'));
+      const num = h('b', {}, w.pages);
+      const range = h('input', { type: 'range', class: 'range', min: dk.min, max: dk.max, value: w.pages, 'aria-label': 'Betlar soni' });
+      const presets = (w.kind === 'kurs' ? [20, 25, 30, 35, 40] : [8, 10, 12, 15, 20]).filter((n) => n >= dk.min && n <= dk.max);
+      const chipEls = presets.map((n) => h('button', { class: 'chip' + (w.pages === n ? ' on' : ''), onclick: () => setPages(n) }, String(n)));
+      const setPages = (n) => { w.pages = n; range.value = n; num.textContent = n; chipEls.forEach((e, i) => e.classList.toggle('on', presets[i] === n)); haptic('select'); };
+      range.addEventListener('input', () => setPages(Number(range.value)));
+      view.append(h('div', { class: 'card flat' },
+        h('div', { class: 'row', style: 'justify-content:space-between;align-items:flex-end' }, h('div', { class: 'bignum' }, num, h('span', { class: 'hint' }, 'bet')), h('div', { style: 'text-align:right' }, h('div', { class: 'hint' }, 'Narxi'), h('span', { style: 'font-weight:700' }, money(docPrice())))),
+        range, h('div', { class: 'chips', style: 'margin-top:6px' }, chipEls),
+        h('div', { class: 'hint', style: 'margin-top:10px' }, `${dk.min}–${dk.max} bet. Titul varagʻi, mundarija va adabiyotlar roʻyxati ham shu betlarga kiradi. Narx betlar soniga bogʻliq emas.`)));
+      view.append(h('label', { class: 'field-l' }, 'Til'));
+      const list = h('div', {});
+      Object.keys(LANGS).filter((l) => c.langs.includes(l)).forEach((l) => list.append(h('button', { class: 'opt pressable' + (w.lang === l ? ' on' : ''), 'aria-pressed': w.lang === l, onclick: () => { w.lang = l; haptic('select'); render(); } },
+        h('div', { class: 'grow' }, h('div', { class: 'nm' }, LANGS[l].name), h('div', { class: 'hint' }, LANGS[l].sub)), h('span', { class: 'radio' }, icon('check', 14, 3.4)))));
+      view.append(list);
+      if (w.lang === 'qq') view.append(h('div', { class: 'hint', style: 'margin:-2px 2px 4px' }, 'Qoraqalpoq tili sinov bosqichida: topshirishdan oldin matnni albatta tekshiring.'));
+      fin.append(h('button', { class: 'btn line', onclick: () => { w.step = 1; render(); } }, 'Orqaga'), h('button', { class: 'btn', onclick: () => { w.step = 3; render(); window.scrollTo(0, 0); } }, 'Davom etish', icon('arrow', 20)));
+    }
+
+    if (w.step === 3) {
+      view.append(h('div', { class: 'title' }, 'Qoʻshimcha va tasdiq'), h('p', { class: 'sub' }, 'Maʼruza yuklasangiz, ish shu matn asosida yoziladi.'));
+      const fileIn = h('input', { type: 'file', accept: '.txt,.md,.docx,.pdf', style: 'display:none', onchange: (e) => onLectureFile(e, w) });
+      view.append(h('button', { class: 'upload pressable', onclick: () => fileIn.click() }, h('span', { class: 'ic' }, icon('upload', 22)),
+        h('span', {}, h('b', {}, w.fileName ? w.fileName : 'Maʼruza faylini yuklash'), h('span', { class: 'hint' }, w.fileName ? `${w.lecture.length} belgi oʻqildi. Almashtirish uchun bosing` : `.txt, .docx yoki .pdf · ${Math.round(c.maxExtract / 1048576)} MB gacha`))), fileIn);
+      if (w.lecture || w.manual) {
+        view.append(h('label', { class: 'field-l' }, 'Maʼruza matni'), h('textarea', { id: 'lecture', placeholder: 'Matnni shu yerga qoʻying', oninput: (e) => { w.lecture = e.target.value; } }, w.lecture),
+          w.fileName ? h('button', { class: 'link', onclick: () => { w.lecture = ''; w.fileName = ''; w.manual = false; render(); } }, 'Maʼruzani olib tashlash') : null);
+      } else view.append(h('button', { class: 'link', style: 'margin-top:8px', onclick: () => { w.manual = true; render(); } }, 'yoki matnni qoʻlda kiritish'));
+      view.append(h('label', { class: 'field-l' }, 'Adabiyotlar (ixtiyoriy)'), h('textarea', { id: 'refs', style: 'min-height:84px', placeholder: 'Har bir manba yangi qatorga', oninput: (e) => { w.references = e.target.value; } }, w.references), h('div', { class: 'hint', style: 'margin:6px 2px 0' }, 'Boʻsh qoldirsangiz, faqat aniq mavjud manbalar qoʻshiladi. Oʻz manbalaringizni yozsangiz, shular ishlatiladi.'));
+
+      const price = docPrice(), rem = me.balance - price, enough = rem >= 0;
+      view.append(h('label', { class: 'field-l' }, 'Buyurtma'),
+        h('div', { class: 'card sum' },
+          h('div', { class: 'r' }, h('span', {}, 'Turi'), h('span', {}, DOC_NAME[w.kind])),
+          h('div', { class: 'r' }, h('span', {}, 'Mavzu'), h('span', {}, w.topic.length > 70 ? w.topic.slice(0, 70) + '…' : w.topic)),
+          w.subject.trim() ? h('div', { class: 'r' }, h('span', {}, 'Fan'), h('span', {}, w.subject.trim())) : null,
+          h('div', { class: 'r' }, h('span', {}, 'Hajmi'), h('span', {}, `${w.pages} bet`)),
+          h('div', { class: 'r' }, h('span', {}, 'Til'), h('span', {}, LANGS[w.lang].name)),
+          h('div', { class: 'r' }, h('span', {}, 'Maʼruza'), h('span', {}, w.lecture ? 'Bor' : 'Yoʻq')),
+          h('div', { class: 'r tot' }, h('span', {}, 'Jami'), h('span', {}, money(price))),
+          h('div', { class: 'r' }, h('span', {}, 'Balansingiz'), h('span', { class: enough ? '' : 'minus' }, money(me.balance)))));
+      view.append(h('div', { class: 'hint', style: 'margin:0 2px' }, `Tayyorlanishi ${etaText({ type: 'doc', docKind: w.kind }).toLowerCase().replace('odatda ', '')}. Titul varagʻi profilingizdagi ism, guruh, universitet va fakultetdan toʻldiriladi. Adabiyotlar roʻyxatini topshirishdan oldin albatta tekshiring.`));
+      if (!enough) view.append(h('div', { class: 'hint minus', style: 'margin:6px 2px 0' }, `Yana ${money(-rem)} kerak.`));
+      const go3 = h('button', { class: 'btn', id: 'go', onclick: () => (enough ? submitDoc(go3) : (state.topupAmount = Math.max(c.minTopup, Math.ceil(-rem / 1000) * 1000), go('balance'))) }, enough ? [icon('spark', 20), `Yozish · ${money(price)}`] : [icon('wallet', 20), 'Balansni toʻldirish']);
+      fin.append(h('button', { class: 'btn line', onclick: () => { w.step = 2; render(); } }, 'Orqaga'), go3);
+    }
+    document.body.append(foot);
+  }
+
+  async function submitDoc(btn) {
+    const w = state.doc, c = state.cfg;
+    btn.disabled = true; btn.replaceChildren(h('span', { class: 'dot-spin' }), 'Yuborilmoqda…');
+    try {
+      const r = await api('POST', '/api/docs', { kind: w.kind, topic: w.topic, subject: w.subject, pages: w.pages, lang: w.lang, lecture: w.lecture, references: w.references });
+      haptic('success');
+      state.lastOrder = { id: r.orderId, topic: w.topic, pages: w.pages, price: r.price, docKind: w.kind };
+      Object.assign(w, { step: 1, topic: '', subject: '', lecture: '', references: '', fileName: '', manual: false });
+      await refreshMe(); state.ordersLoaded = false;
+      go('success');
+    } catch (err) {
+      haptic('error');
+      if (err.data && err.data.error === 'balance') { state.topupAmount = Math.max(c.minTopup, Math.ceil(err.data.need / 1000) * 1000); toast(`Balans yetmaydi: yana ${money(err.data.need)} kerak.`); return go('balance'); }
+      if (err.data && err.data.error === 'profile') { toast(err.message); return go('profile'); }
+      toast(err.message); render();
+    }
+  }
+
   function screenSuccess() {
     const o = state.lastOrder || {};
     view.append(h('div', { class: 'success' },
       h('div', { class: 'ring' }, icon('check', 46, 3)),
       h('h1', {}, 'Buyurtma qabul qilindi'),
-      h('p', { class: 'sub', style: 'max-width:300px;margin:0 auto 24px' }, `“${(o.topic || '').slice(0, 80)}” tayyorlanmoqda. Odatda 1–3 daqiqa. Tayyor boʻlgach fayllar shu bot chatiga keladi.`),
+      h('p', { class: 'sub', style: 'max-width:300px;margin:0 auto 24px' }, `“${(o.topic || '').slice(0, 80)}” tayyorlanmoqda. ${etaText(o.docKind ? { type: 'doc', docKind: o.docKind } : {})}. Tayyor boʻlgach fayllar shu bot chatiga keladi.`),
       h('div', { style: 'display:grid;gap:10px;max-width:360px;margin:0 auto' },
         h('button', { class: 'btn', onclick: () => go('history') }, 'Jarayonni koʻrish'),
         h('button', { class: 'btn line', onclick: () => go('home') }, 'Bosh sahifa'))));
@@ -770,7 +893,7 @@
         h('div', { class: 'wallet' }, h('div', { class: 'lab' }, 'Daromad (xizmatlarga sarflangan)'), h('div', { class: 'amt', id: 'adm-revenue' }, nf(p.spent), h('small', {}, 'soʻm')),
           h('div', { class: 'lab', id: 'adm-topups' }, `Kartaga tushgan: ${money(p.topups)} · ${p.topupCount} ta toʻlov`)),
         h('div', { class: 'sec' }, h('h2', {}, 'Ishlar')),
-        h('div', { class: 'grid2' }, statCell('Taqdimotlar', p.decks), statCell('Tahrirlar', p.edits), statCell('Himoya savollari', p.defenses), statCell('Yangi foydalanuvchi', p.newUsers)),
+        h('div', { class: 'grid2' }, statCell('Taqdimotlar', p.decks), statCell('Referatlar', p.referats || 0), statCell('Kurs ishlari', p.kurslar || 0), statCell('Tahrirlar', p.edits), statCell('Himoya savollari', p.defenses), statCell('Yangi foydalanuvchi', p.newUsers)),
         h('div', { class: 'sec' }, h('h2', {}, 'Balans harakatlari')),
         h('div', { class: 'group' }, infoRow('Yechilgan', money(p.charged)), infoRow('Qaytarilgan', money(p.refunded)), infoRow('Referal bonuslari', money(p.referral)), infoRow('Promo-kod bonuslari', money(p.promo)), infoRow('Admin qoʻshgan', money(p.bonus)), infoRow('Admin ayirgan', money(p.debit))),
         h('div', { class: 'sec' }, h('h2', {}, 'Baholar')),
@@ -900,7 +1023,7 @@
       }
       if (d.orders.length) {
         box.append(h('div', { class: 'sec' }, h('h2', {}, 'Soʻnggi buyurtmalar')), h('div', { class: 'group' }, d.orders.map((o) => h('div', { class: 'li' },
-          h('div', { class: 'grow' }, h('div', { class: 't' }, o.topic || (o.type === 'edit' ? 'Tahrir' : 'Buyurtma')), h('div', { class: 'hint' }, [o.type === 'edit' ? 'tahrir' : 'taqdimot', money(o.price), when(o.createdAt)].join(' · '))),
+          h('div', { class: 'grow' }, h('div', { class: 't' }, o.topic || (o.type === 'edit' ? 'Tahrir' : 'Buyurtma')), h('div', { class: 'hint' }, [o.type === 'edit' ? 'tahrir' : o.type === 'doc' ? (o.docKind === 'kurs' ? 'kurs ishi' : 'referat') : 'taqdimot', money(o.price), when(o.createdAt)].join(' · '))),
           h('span', { class: 'badge ' + o.status }, STATUS[o.status] || o.status)))));
       }
       if (d.payments.length) {
@@ -929,6 +1052,7 @@
         try { await loadOrders(); } catch (e) { /* roʻyxatsiz ham ochiladi */ }
         if (state.orders.some((o) => o.id === dId && o.status === 'done')) return openDefense(dId);
       }
+      if (q.get('doc') === '1' && !state.me.profileMissing) return openDoc();
       go(state.me.profileMissing ? 'profile' : 'home');
     } catch (e) {
       view.replaceChildren(h('div', { class: 'empty', style: 'padding-top:90px' }, icon('inbox', 56, 1.4), h('b', {}, 'Ulanib boʻlmadi'), e.message || '', h('div', { style: 'margin-top:16px' }, h('button', { class: 'btn sm', onclick: () => location.reload() }, 'Qayta urinish'))));
