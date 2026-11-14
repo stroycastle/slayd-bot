@@ -1,9 +1,9 @@
-# Hosting (Render va h.k.) uchun: Node + LibreOffice (PDF yasash uchun)
+# Hosting (Render va h.k.) uchun: Node + LibreOffice (taqdimot va referat/kurs ishi PDFi uchun)
 FROM node:20-bookworm-slim
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      libreoffice-impress fonts-crosextra-carlito fonts-crosextra-caladea fonts-dejavu fonts-liberation \
+      libreoffice-impress libreoffice-writer fonts-crosextra-carlito fonts-crosextra-caladea fonts-dejavu fonts-liberation \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
