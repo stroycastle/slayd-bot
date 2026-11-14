@@ -17,6 +17,6 @@ const thanks = (n) =>
 
 /** Past baho haqida adminga xabar (HTML emas, oddiy matn). */
 const lowNotice = (o, user, n) =>
-  `⭐ Past baho: ${stars(n)}\nBuyurtma #${o.id}${o.type === 'edit' ? ' (tahrir)' : ''}: «${String(o.topic || '').slice(0, 80)}»\nTil: ${o.lang || '—'} · koʻrinish: ${o.style || '—'}\nFoydalanuvchi: ${(user && user.name) || '—'}${user && user.username ? ' @' + user.username : ''} (ID ${o.userId})`;
+  `⭐ Past baho: ${stars(n)}\nBuyurtma #${o.id}${o.type === 'edit' ? ' (tahrir)' : o.type === 'doc' ? (o.docKind === 'kurs' ? ' (kurs ishi)' : ' (referat)') : ''}: «${String(o.topic || '').slice(0, 80)}»\nTil: ${o.lang || '—'} · koʻrinish: ${o.style || '—'}\nFoydalanuvchi: ${(user && user.name) || '—'}${user && user.username ? ' @' + user.username : ''} (ID ${o.userId})`;
 
 module.exports = { stars, PROMPT, keyboard, prompt, thanks, lowNotice };

@@ -420,6 +420,7 @@ class Store {
       users: Object.keys(d.users).length,
       decks: d.orders.filter((o) => o.type === 'deck' && o.status === 'done').length,
       edits: d.orders.filter((o) => o.type === 'edit' && o.status === 'done').length,
+      docs: d.orders.filter((o) => o.type === 'doc' && o.status === 'done').length,
       revenue: sum(charges.map((l) => l.amount)) - sum(refunds.map((l) => l.amount)),
       topups: sum(d.payments.filter((p) => p.status === 'approved').map((p) => p.amount)),
       pending: d.payments.filter((p) => p.status === 'pending').length,

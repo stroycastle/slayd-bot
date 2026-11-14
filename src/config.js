@@ -64,6 +64,11 @@ module.exports = {
   // Himoyaga tayyorgarlik: tayyor taqdimot uchun oʻqituvchi savollari va javoblari (Mini App). 0 boʻlsa bepul.
   PRICE_DEFENSE: num(process.env.PRICE_DEFENSE, 2000),
   DEFENSE_QUESTIONS: Math.min(15, Math.max(6, num(process.env.DEFENSE_QUESTIONS, 12))),
+  // Referat va kurs ishi (.docx + PDF): butun ish uchun qatʼiy narx. 0 boʻlsa bepul.
+  PRICE_REFERAT: num(process.env.PRICE_REFERAT, 8000),
+  PRICE_KURS: num(process.env.PRICE_KURS, 20000),
+  // Referat/kurs ishida bir vaqtda nechta boʻlim yozdiriladi (bepul modellarda daqiqasiga 20 ta soʻrov chegarasi bor)
+  DOC_CONCURRENCY: Math.min(4, Math.max(1, num(process.env.DOC_CONCURRENCY, 2))),
   MIN_TOPUP: num(process.env.MIN_TOPUP, 10000),
   // Referal dasturi: taklif qilingan foydalanuvchining har bir TASDIQLANGAN toʻldirishidan shuncha foiz taklif qilganga balansga qoʻshiladi.
   // 0 boʻlsa dastur oʻchadi. Bonus faqat haqiqiy toʻlovdan keyin beriladi, shuning uchun soxta akkauntlar zarar keltirmaydi.

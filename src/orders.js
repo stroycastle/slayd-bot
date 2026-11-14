@@ -4,6 +4,7 @@ const config = require('./config');
 const service = require('./service');
 const { PALETTES, STYLE_KEYS, DEFAULT_STYLE, randomStyle } = require('./deck');
 const rating = require('./rating');
+const { KINDS } = require('./docgen');
 
 // API shartnomasidagi til kodlari (mini ilova `qq` yuboradi); botda ichki kod `kaa` (qoraqalpoq, lotin)
 const LANGS = ['uz', 'uzc', 'ru', 'qq'];
@@ -37,6 +38,28 @@ function validate(b) {
   const lecture = clean(b.lecture, config.MAX_LECTURE_CHARS);
   const references = clean(b.references, 6000);
   return { ok: true, value: { topic, slides, lang: toInternalLang(b.lang), color: b.color, style, lecture: lecture || '', references: references || '' } };
+}
+
+const docPrice = (kind) => (kind === 'kurs' ? config.PRICE_KURS : config.PRICE_REFERAT);
+const kindLabel = (kind) => (kind === 'kurs' ? 'Kurs ishi' : 'Referat');
+
+/** Referat / kurs ishi buyurtmasini tekshiradi. Qaytaradi: { ok, value | error } */
+function validateDoc(b) {
+  b = b || {};
+  const kind = b.kind === 'kurs' ? 'kurs' : b.kind === 'referat' ? 'referat' : null;
+  if (!kind) return { ok: false, error: 'Hujjat turini tanlang (referat yoki kurs ishi).' };
+  const topic = clean(b.topic, 300);
+  if (topic.length < 3) return { ok: false, error: 'Mavzuni yozing (kamida 3 belgi).' };
+  const k = KINDS[kind];
+  const pages = Number(b.pages);
+  if (!Number.isInteger(pages) || pages < k.min || pages > k.max) {
+    return { ok: false, error: `Bet soni ${k.min} dan ${k.max} gacha boʻlishi kerak.` };
+  }
+  if (!LANGS.includes(b.lang) && b.lang !== 'kaa') return { ok: false, error: 'Til notoʻgʻri.' };
+  const subject = clean(b.subject, 100).replace(/\s+/g, ' ');
+  const lecture = clean(b.lecture, config.MAX_LECTURE_CHARS);
+  const references = clean(b.references, 6000);
+  return { ok: true, value: { kind, topic, pages, lang: toInternalLang(b.lang), subject, lecture: lecture || '', references: references || '' } };
 }
 
 function createOrders({ store, bot }) {
@@ -102,15 +125,76 @@ function createOrders({ store, bot }) {
     return { code: 200, body: { orderId: order.id, price, balance: store.getUser(userId).balance } };
   }
 
+  async function sendDocFiles(userId, base, res) {
+    await bot.telegram.sendDocument(userId, { source: res.docx, filename: `${base}.docx` });
+    if (res.pdf) await bot.telegram.sendDocument(userId, { source: res.pdf, filename: `${base}.pdf` });
+  }
+
+  async function runDoc(userId, order, d) {
+    try {
+      const profile = (store.getUser(userId) || {}).profile || {};
+      const res = await service.createDoc({ ...d, profile });
+      // matn rejadagidan ancha kam chiqsa, farqi qaytariladi
+      const refund = service.docShortfallRefund(order, res.words, res.targetWords);
+      if (refund > 0) store.refund(userId, refund, `${kindLabel(d.kind)} qisqa chiqdi: buyurtma #${order.id}`);
+      const pageCount = res.pageCount || d.pages;
+      store.updateOrder(order.id, { status: 'done', doc: res.doc, words: res.words, finalPages: pageCount, price: order.price - refund });
+      try {
+        await sendDocFiles(userId, service.fileBase(d.topic), res);
+        let msg = `✅ ${kindLabel(d.kind)} tayyor! Taxminan ${pageCount} bet, ${res.words} soʻz.`;
+        if (refund) msg += ` Matn rejadagidan qisqaroq chiqqani uchun ${fmt(refund)} balansingizga qaytarildi.`;
+        msg += `\n\n.docx faylini Wordda oching: shrift, oraliq va betlar tayyor, siz faqat tahrir qilasiz.\nTopshirishdan oldin matnni oʻqib chiqing va adabiyotlar roʻyxatidagi manbalar haqiqatan mavjudligini tekshiring: sunʼiy intellekt manbani adashtirishi mumkin. Matnda havola raqamlari ([1], [2]) qoʻyilmagan.`;
+        await bot.telegram.sendMessage(userId, msg);
+        rating.prompt(bot, userId, order.id);
+      } catch (e) {
+        store.updateOrder(order.id, { deliveryError: String(e.message || e).slice(0, 200) });
+      }
+    } catch (e) {
+      console.error('Hujjat buyurtmasi xatosi:', e);
+      store.updateOrder(order.id, { status: 'failed', error: String(e.message || e).slice(0, 300) });
+      store.refund(userId, order.price, `Xatolik: buyurtma #${order.id}`);
+      bot.telegram.sendMessage(userId, `Kechirasiz, ${kindLabel(d.kind).toLowerCase()}ni tayyorlashda xatolik chiqdi. ${fmt(order.price)} balansingizga qaytarildi. Birozdan keyin qayta urinib koʻring.`).catch(() => {});
+      notifyAdmins(`❗ Buyurtma #${order.id} (${kindLabel(d.kind)}) xatolik: ${String(e.message || e).slice(0, 300)}`);
+    }
+  }
+
+  /** Referat / kurs ishi buyurtma qiladi. Qaytaradi: { code, body } */
+  function placeDoc(userId, input) {
+    const v = validateDoc(input);
+    if (!v.ok) return { code: 400, body: { error: 'invalid', message: v.error } };
+    const user = store.getUser(userId);
+    if (!user) return { code: 401, body: { error: 'auth' } };
+    const miss = profileMissing(user.profile);
+    if (miss) return { code: 400, body: { error: 'profile', field: miss, message: 'Avval profilni toʻldiring (titul varagʻi uchun).' } };
+    if (store.hasProcessing(userId)) {
+      return { code: 409, body: { error: 'busy', message: 'Avvalgi buyurtmangiz hali tayyorlanmoqda.' } };
+    }
+    const d = v.value;
+    const price = docPrice(d.kind);
+    if (!(price > 0)) return { code: 400, body: { error: 'invalid', message: 'Bu xizmat hozircha yoqilmagan.' } };
+    if (!store.charge(userId, price, `${kindLabel(d.kind)}: ${d.topic.slice(0, 40)}`)) {
+      return { code: 402, body: { error: 'balance', need: price - user.balance, message: 'Balansda mablagʻ yetarli emas.' } };
+    }
+    const order = store.addOrder({ userId, type: 'doc', docKind: d.kind, source: 'miniapp', topic: d.topic, subject: d.subject, slides: d.pages, pages: d.pages, lang: d.lang, price, hasLecture: !!d.lecture });
+    runDoc(userId, order, d); // fon rejimida
+    return { code: 200, body: { orderId: order.id, price, balance: store.getUser(userId).balance } };
+  }
+
   /** Tayyor taqdimotni qayta chatga yuboradi. */
   async function resend(userId, orderId) {
     const o = store.getOrder(orderId);
-    if (!o || o.userId !== userId || o.type !== 'deck' || o.status !== 'done' || !o.deck) return { code: 404, body: { error: 'not_found' } };
+    const isDoc = o && o.type === 'doc';
+    if (!o || o.userId !== userId || o.status !== 'done' || !(isDoc ? o.doc : o.type === 'deck' && o.deck)) return { code: 404, body: { error: 'not_found' } };
     if (o.lastSentAt && Date.now() - o.lastSentAt < 20000) return { code: 429, body: { error: 'wait', message: 'Biroz kuting va qayta urinib koʻring.' } };
     store.updateOrder(o.id, { lastSentAt: Date.now() });
     const profile = (store.getUser(userId) || {}).profile || {};
-    const res = await service.render(o.deck, { color: o.color, style: o.style, lang: o.lang, profile });
-    await sendFiles(userId, service.fileBase(o.topic), res);
+    if (isDoc) {
+      const res = await service.renderDoc(o.doc, { lang: o.lang, profile });
+      await sendDocFiles(userId, service.fileBase(o.topic), res);
+    } else {
+      const res = await service.render(o.deck, { color: o.color, style: o.style, lang: o.lang, profile });
+      await sendFiles(userId, service.fileBase(o.topic), res);
+    }
     return { code: 200, body: { ok: true } };
   }
 
@@ -165,7 +249,7 @@ function createOrders({ store, bot }) {
     return { code: 200, body };
   }
 
-  return { placeDeck, resend, placeDefense, defenseView, validate };
+  return { placeDeck, placeDoc, resend, placeDefense, defenseView, validate, validateDoc };
 }
 
-module.exports = { createOrders, validate, profileMissing, LANGS, toPublicLang, fmt };
+module.exports = { createOrders, validate, validateDoc, profileMissing, LANGS, toPublicLang, fmt, docPrice };

@@ -1,4 +1,4 @@
-// .pptx -> .pdf (LibreOffice orqali). LibreOffice yo'q bo'lsa xato beradi, bot esa faqat .pptx yuboradi.
+// .pptx / .docx -> .pdf (LibreOffice orqali). LibreOffice yo'q bo'lsa xato beradi, bot esa faqat asl faylni yuboradi.
 const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -39,9 +39,9 @@ function run(cmd, args, timeoutMs) {
 // LibreOffice bir vaqtda bitta jarayonni yaxshi ko'taradi, shuning uchun navbatga qo'yamiz.
 let queue = Promise.resolve();
 
-function toPdf(pptxPath) {
+function toPdf(srcPath) {
   const job = queue.then(async () => {
-    const outDir = path.dirname(pptxPath);
+    const outDir = path.dirname(srcPath);
     const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'lo-'));
     const args = [
       '--headless',
@@ -50,14 +50,14 @@ function toPdf(pptxPath) {
       'pdf',
       '--outdir',
       outDir,
-      pptxPath,
+      srcPath,
     ];
     let lastErr = null;
     try {
       for (const cmd of candidates()) {
         try {
           await run(cmd, args, 180000);
-          const pdf = pptxPath.replace(/\.pptx$/i, '.pdf');
+          const pdf = srcPath.replace(/\.(pptx|docx)$/i, '.pdf');
           if (fs.existsSync(pdf)) return pdf;
         } catch (e) {
           lastErr = e;

@@ -5,6 +5,8 @@ const config = require('./config');
 const ai = require('./ai');
 const { buildDeck } = require('./deck');
 const { toPdf } = require('./pdf');
+const docgen = require('./docgen');
+const docx = require('./docx');
 
 const KEEP_AT_ENDS = new Set(['agenda', 'conclusion', 'references']);
 
@@ -76,9 +78,70 @@ async function createDefense(params) {
   return ai.generateDefense({ deck: params.deck, topic: params.topic, lang: params.lang, count: config.DEFENSE_QUESTIONS });
 }
 
+// ---------------------------------------------------------------- referat va kurs ishi (.docx + PDF)
+/** Matn yozilgandan keyingi hujjat: avval taxminiy bet raqamlari bilan .docx, PDFga aylantirib, mundarijadagi betlar haqiqiysiga almashtiriladi. */
+async function renderDoc(doc, { lang, profile }) {
+  const first = await docx.buildDocx(doc, { profile, lang });
+  let buffer = first.buffer;
+  let pdf = null;
+  let pageCount = null;
+  if (config.DISABLE_PDF) return { docx: buffer, pdf, pageCount };
+  fs.mkdirSync(config.TMP_DIR, { recursive: true });
+  const dir = fs.mkdtempSync(path.join(config.TMP_DIR, 'doc-'));
+  try {
+    const file = path.join(dir, 'doc.docx');
+    fs.writeFileSync(file, buffer);
+    try {
+      pdf = fs.readFileSync(await toPdf(file));
+    } catch (e) {
+      console.warn('PDF yasalmadi (faqat .docx yuboriladi):', e.message);
+      return { docx: buffer, pdf: null, pageCount };
+    }
+    try {
+      const { pages: texts, total } = await docx.pdfPageTexts(pdf);
+      pageCount = total;
+      const found = docx.locateHeadings(texts, first.headings);
+      const ok = found.filter((p) => Number.isInteger(p)).length;
+      if (ok >= Math.ceil(found.length / 2)) {
+        const pages = found.map((p, i) => (Number.isInteger(p) ? p : first.headings[i].page));
+        if (pages.some((p, i) => p !== first.headings[i].page)) {
+          const second = await docx.buildDocx(doc, { profile, lang, pages });
+          fs.writeFileSync(file, second.buffer);
+          pdf = fs.readFileSync(await toPdf(file));
+          buffer = second.buffer;
+        }
+      }
+    } catch (e) {
+      // mundarijadagi betlar taxminiy qoladi — hujjat baribir yaroqli
+      console.warn('Mundarija betlari aniqlanmadi (taxminiy qoldi):', e.message);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  return { docx: buffer, pdf, pageCount };
+}
+
+/** params: { kind, topic, pages, lang, subject, lecture, references, profile } */
+async function createDoc(params) {
+  const gen = await docgen.generateDoc(params);
+  const files = await renderDoc(gen.doc, params);
+  return { doc: gen.doc, words: gen.words, targetWords: gen.targetWords, ...files };
+}
+
+/**
+ * Matn rejadagidan ancha kam chiqsa qaytariladigan pul: soʻz soni rejaning 75 foizidan kam boʻlsa, yetishmagan ulushi
+ * (100 soʻmgacha yaxlitlanadi, toʻlangandan koʻp emas).
+ */
+function docShortfallRefund(order, words, target) {
+  if (!(target > 0) || !(order.price > 0)) return 0;
+  const ratio = words / target;
+  if (ratio >= 0.75) return 0;
+  return Math.min(order.price, Math.max(0, Math.round((order.price * (1 - ratio)) / 100) * 100));
+}
+
 function fileBase(topic) {
   const t = String(topic || 'Taqdimot').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50);
   return t || 'Taqdimot';
 }
 
-module.exports = { createDeck, editDeck, createDefense, fileBase, trimToTarget, render, shortfallRefund };
+module.exports = { createDeck, editDeck, createDefense, fileBase, trimToTarget, render, shortfallRefund, createDoc, renderDoc, docShortfallRefund };

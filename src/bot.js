@@ -13,6 +13,7 @@ const promo = require('./promo');
 const rating = require('./rating');
 
 const BTN_NEW = '📊 Yangi taqdimot';
+const BTN_DOC = '📄 Referat / Kurs ishi';
 const BTN_EDIT = '✏️ Tahrirlash';
 const BTN_BAL = '💰 Balans';
 const BTN_REF = '🎁 Doʻst taklif qilish';
@@ -46,7 +47,7 @@ function createBot({ store, download }) {
   const drafts = new Map(); // foydalanuvchi -> tayyor buyurtma loyihasi
   const busy = new Set(); // hozir slayd tayyorlanayotgan foydalanuvchilar
 
-  const menu = Markup.keyboard([[BTN_NEW], [BTN_EDIT, BTN_BAL], [BTN_REF, BTN_HELP]]).resize();
+  const menu = Markup.keyboard([[BTN_NEW, BTN_DOC], [BTN_EDIT, BTN_BAL], [BTN_REF, BTN_HELP]]).resize();
   const cancelKb = Markup.inlineKeyboard([[Markup.button.callback('❌ Bekor qilish', 'cancel')]]);
   const setState = (id, step, data) => {
     const old = states.get(id);
@@ -82,7 +83,8 @@ function createBot({ store, download }) {
   const welcome = () =>
     `Salom! Men talabalar uchun taqdimot (slayd) yasab beraman.\n\n` +
     `${priceLine()}\n` +
-    `• Slaydni tahrirlash (oʻzgartirish, gap qoʻshish) — <b>${fmt(config.PRICE_EDIT)}</b>\n\n` +
+    `• Slaydni tahrirlash (oʻzgartirish, gap qoʻshish) — <b>${fmt(config.PRICE_EDIT)}</b>\n` +
+    `• Referat (8–20 bet) — <b>${fmt(config.PRICE_REFERAT)}</b>, kurs ishi (20–40 bet) — <b>${fmt(config.PRICE_KURS)}</b> («${BTN_DOC}», .docx va PDF)\n\n` +
     `Tilni (oʻzbek lotin/kirill, rus), rangni va 20 xil koʻrinishdan birini oʻzingiz tanlaysiz. Maʼruza matni va adabiyotlaringiz boʻlsa, yuborasiz, men shulardan foydalanaman. ` +
     `Natija .pptx va PDF koʻrinishida keladi.\n\nBoshlash uchun «${BTN_NEW}» tugmasini bosing.`;
 
@@ -123,10 +125,24 @@ function createBot({ store, download }) {
     return ctx.reply('Bekor qilindi.', menu);
   });
 
+  // ------------------------------------------------------------ referat / kurs ishi (Ilovada)
+  const showDoc = (ctx) => {
+    const url = config.WEBAPP_URL;
+    if (!/^https:\/\//.test(url || '')) return ctx.reply('Ilova hozircha ishlamayapti. Birozdan keyin urinib koʻring.', menu);
+    return ctx.reply(
+      `📄 <b>Referat va kurs ishi</b>\n\n• Referat (8–20 bet): <b>${fmt(config.PRICE_REFERAT)}</b>\n• Kurs ishi (20–40 bet): <b>${fmt(config.PRICE_KURS)}</b>\n\n` +
+        `Titul varagʻi, mundarija (betlar raqami bilan), kirish, boblar, xulosa va adabiyotlar roʻyxati tayyor holda, Word (.docx) va PDF koʻrinishida keladi: shrift, oraliq va chekkalar odatdagi talabga mos.\n\n` +
+        `Mavzu, bet soni va tilni Ilovada tanlaysiz. Maʼruza matni yoki adabiyotlaringiz boʻlsa, qoʻshishingiz mumkin.`,
+      { ...HTML, ...Markup.inlineKeyboard([[Markup.button.webApp('📄 Ilovada buyurtma berish', `${url}/?doc=1`)]]) }
+    );
+  };
+  bot.hears(BTN_DOC, showDoc);
+  bot.command('referat', showDoc);
+
   bot.hears(BTN_HELP, (ctx) =>
     ctx.reply(
-      `<b>Narxlar</b>\n${priceLine()}\n• Tahrir: ${fmt(config.PRICE_EDIT)}\n\n` +
-        `<b>Qanday ishlaydi</b>\n1. Balansni toʻldirasiz (kartaga oʻtkazib, chekni yuborasiz).\n2. «${BTN_NEW}» — mavzu, slaydlar soni, til, rang, koʻrinish (20 xil), maʼruza matni.\n3. Taqdimot tayyor boʻlgach .pptx va PDF keladi.\n4. Oʻzgartirish kerak boʻlsa «${BTN_EDIT}».\n\n` +
+      `<b>Narxlar</b>\n${priceLine()}\n• Tahrir: ${fmt(config.PRICE_EDIT)}\n• Referat: ${fmt(config.PRICE_REFERAT)} · Kurs ishi: ${fmt(config.PRICE_KURS)}\n\n` +
+        `<b>Qanday ishlaydi</b>\n1. Balansni toʻldirasiz (kartaga oʻtkazib, chekni yuborasiz).\n2. «${BTN_NEW}» — mavzu, slaydlar soni, til, rang, koʻrinish (20 xil), maʼruza matni.\n3. Taqdimot tayyor boʻlgach .pptx va PDF keladi.\n4. Oʻzgartirish kerak boʻlsa «${BTN_EDIT}».\n5. Referat yoki kurs ishi kerak boʻlsa «${BTN_DOC}»: Word (.docx) va PDF keladi.\n\n` +
         `<b>Muhim</b>\nMatnni AI yozadi. Topshirishdan oldin oʻqib chiqing, faktlar va adabiyotlar roʻyxatini tekshiring, kerak boʻlsa oʻz soʻzingiz bilan moslang.\n\n` +
         `<b>Promo-kod</b>\n/promo <i>KOD</i> — bonus oling (bir foydalanuvchi bir marta).\n\n<b>Savol yoki muammo</b>\n/murojaat <i>matn</i> — adminga yuboriladi.` +
         (config.WEBAPP_URL ? `\n\n<a href="${esc(config.WEBAPP_URL)}/privacy.html">Maxfiylik siyosati</a>` : ''),
@@ -170,7 +186,7 @@ function createBot({ store, download }) {
 
   // ------------------------------------------------------------ yangi taqdimot
   bot.hears(BTN_NEW, (ctx) => {
-    if (busy.has(ctx.from.id) || store.hasProcessing(ctx.from.id)) return ctx.reply('Avvalgi taqdimotingiz hali tayyorlanmoqda. Biroz kuting.');
+    if (busy.has(ctx.from.id) || store.hasProcessing(ctx.from.id)) return ctx.reply('Avvalgi buyurtmangiz hali tayyorlanmoqda. Biroz kuting.');
     setState(ctx.from.id, 'topic', {});
     return ctx.reply('Taqdimot mavzusini yozing.\nMasalan: «Grammatik kategoriya va uning turlari»', cancelKb);
   });
@@ -369,7 +385,7 @@ function createBot({ store, download }) {
     const id = ctx.from.id;
     const d = drafts.get(id);
     if (!d) return ctx.reply('Buyurtma topilmadi. «' + BTN_NEW + '» tugmasidan boshlang.', menu);
-    if (busy.has(id) || store.hasProcessing(id)) return ctx.reply('Avvalgi taqdimotingiz hali tayyorlanmoqda.');
+    if (busy.has(id) || store.hasProcessing(id)) return ctx.reply('Avvalgi buyurtmangiz hali tayyorlanmoqda.');
     const price = config.deckPrice(d.slides);
     if (!store.charge(id, price, `Taqdimot: ${d.topic.slice(0, 40)}`)) {
       const need = price - store.getUser(id).balance;
@@ -587,7 +603,7 @@ function createBot({ store, download }) {
     const sm = admin.summary(store);
     const line = (label, p) => `${label}: daromad ${fmt(p.spent)} · kartaga tushgan ${fmt(p.topups)} · yangi: ${p.newUsers}`;
     return ctx.reply(
-      `Foydalanuvchilar: ${s.users}\nTaqdimotlar: ${s.decks}\nTahrirlar: ${s.edits}\nTushum (xarajat qilingan): ${fmt(s.revenue)}\nTasdiqlangan toʻldirishlar: ${fmt(s.topups)}\nBalanslardagi qoldiq: ${fmt(s.balances)}\nTasdiq kutayotgan toʻlovlar: ${s.pending}\n\n` +
+      `Foydalanuvchilar: ${s.users}\nTaqdimotlar: ${s.decks}\nReferat/kurs ishlari: ${s.docs}\nTahrirlar: ${s.edits}\nTushum (xarajat qilingan): ${fmt(s.revenue)}\nTasdiqlangan toʻldirishlar: ${fmt(s.topups)}\nBalanslardagi qoldiq: ${fmt(s.balances)}\nTasdiq kutayotgan toʻlovlar: ${s.pending}\n\n` +
         `${line('Bugun', sm.periods.today)}\n${line('7 kun', sm.periods.week)}\n${line('30 kun', sm.periods.month)}\nReferal bonuslari (jami): ${fmt(sm.periods.all.referral)}\n\n` +
         `Foydalanuvchilar, balans va daromadni Ilovada (Bosh sahifa → Admin) koʻrasiz. Buyruqlar: /qosh, /ayir, /user.`
     );

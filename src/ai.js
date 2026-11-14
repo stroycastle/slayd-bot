@@ -516,4 +516,4 @@ async function mockDefense({ topic, lang, count }) {
   return normalizeDefense({ items }, count);
 }
 
-module.exports = { generateDeck, editDeck, generateDefense, deckDigest, normalizeDefense, toCyr };
+module.exports = { generateDeck, editDeck, generateDefense, deckDigest, normalizeDefense, toCyr, LANG_RULES, recencyRules };

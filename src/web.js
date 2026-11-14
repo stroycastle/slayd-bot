@@ -13,6 +13,7 @@ const adminTools = require('./admin');
 const referral = require('./referral');
 const promo = require('./promo');
 const rating = require('./rating');
+const { KINDS } = require('./docgen');
 
 const STATIC_DIR = path.join(__dirname, '..', 'miniapp');
 const PREVIEW_DIR = path.join(__dirname, '..', 'assets', 'previews');
@@ -89,6 +90,7 @@ function createWebHandler({ store, bot }) {
 
   const publicOrder = (o) => ({
     id: o.id, topic: o.topic, slides: o.finalSlides || o.slides, lang: toPublicLang(o.lang), color: o.color, style: o.style || null,
+    type: o.type === 'doc' ? 'doc' : 'deck', docKind: o.type === 'doc' ? o.docKind : undefined, pages: o.type === 'doc' ? o.finalPages || o.pages : undefined,
     status: o.status, price: o.price, createdAt: o.createdAt, error: o.status === 'failed' ? 'Xatolik, pul qaytarildi' : undefined,
     defense: o.defenseStatus || 'none', // himoya savol-javoblari: none | processing | done | failed
     rating: o.rating ? o.rating.stars : null, // 1–5 yoki null (baholanmagan)
@@ -109,6 +111,8 @@ function createWebHandler({ store, bot }) {
         user: publicMe(store.getUser(uid)),
         config: {
           flat: config.PRICE_DECK > 0, priceDeck: config.PRICE_DECK, priceSlide: config.PRICE_SLIDE, priceEdit: config.PRICE_EDIT,
+          priceReferat: config.PRICE_REFERAT, priceKurs: config.PRICE_KURS,
+          docs: { referat: { min: KINDS.referat.min, max: KINDS.referat.max, def: KINDS.referat.def }, kurs: { min: KINDS.kurs.min, max: KINDS.kurs.max, def: KINDS.kurs.def } },
           priceDefense: config.PRICE_DEFENSE, defenseQuestions: config.DEFENSE_QUESTIONS, referralPercent: config.REFERRAL_PERCENT,
           minTopup: config.MIN_TOPUP, maxTopup: 5000000,
           minSlides: config.MIN_SLIDES, maxSlides: config.MAX_SLIDES, maxLecture: config.MAX_LECTURE_CHARS, maxExtract: config.MAX_EXTRACT_BYTES,
@@ -155,8 +159,16 @@ function createWebHandler({ store, bot }) {
       return r.body;
     }
 
+    if (m === 'POST' && p === '/api/docs') {
+      rateLimit(uid, 'order', 12, 60000);
+      const b = await readJson(req, 400 * 1024);
+      const r = orders.placeDoc(uid, b);
+      if (r.code !== 200) throw Object.assign(new HttpError(r.code, r.body.error, r.body.message), { extra: r.body });
+      return r.body;
+    }
+
     if (m === 'GET' && p === '/api/orders') {
-      const list = store.db.orders.filter((o) => o.userId === uid && o.type === 'deck').slice(-40).reverse().map(publicOrder);
+      const list = store.db.orders.filter((o) => o.userId === uid && (o.type === 'deck' || o.type === 'doc')).slice(-40).reverse().map(publicOrder);
       return { orders: list, balance: store.getUser(uid).balance };
     }
 

@@ -53,6 +53,8 @@ function summary(store, now = Date.now()) {
       ratings: ratingStats(d.orders, from),
       decks: d.orders.filter((o) => o.type === 'deck' && o.status === 'done' && inRange(o)).length,
       edits: d.orders.filter((o) => o.type === 'edit' && o.status === 'done' && inRange(o)).length,
+      referats: d.orders.filter((o) => o.type === 'doc' && o.docKind === 'referat' && o.status === 'done' && inRange(o)).length,
+      kurslar: d.orders.filter((o) => o.type === 'doc' && o.docKind === 'kurs' && o.status === 'done' && inRange(o)).length,
       defenses: d.orders.filter((o) => o.defenseStatus === 'done' && (o.defenseStartedAt || o.createdAt) >= from).length,
       newUsers: Object.values(d.users).filter((u) => u.createdAt >= from).length,
     };
@@ -141,7 +143,7 @@ function userDetail(store, id) {
     totals: { orders: agg.orders, spent: agg.spent, topups: agg.topups, bonus: by('credit'), referral: by('referral'), promo: by('promo'), debit: by('debit'), refunded: by('refund') },
     promo: u.promo || null,
     orders: store.db.orders.filter((o) => o.userId === u.id).slice(-8).reverse()
-      .map((o) => ({ id: o.id, type: o.type, topic: o.topic || '', status: o.status, price: o.price || 0, createdAt: o.createdAt, defense: o.defenseStatus || 'none' })),
+      .map((o) => ({ id: o.id, type: o.type, docKind: o.docKind || undefined, topic: o.topic || '', status: o.status, price: o.price || 0, createdAt: o.createdAt, defense: o.defenseStatus || 'none' })),
     ledger: led.slice(-20).reverse().map((l) => ({ id: l.id, type: l.type, amount: l.amount, note: l.note, ts: l.ts })),
     payments: store.db.payments.filter((p) => p.userId === u.id).slice(-8).reverse().map((p) => ({ id: p.id, amount: p.amount, status: p.status, createdAt: p.createdAt })),
   };
