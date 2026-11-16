@@ -33,7 +33,7 @@
 
   const state = {
     me: null, cfg: null, screen: 'home', orders: [], ordersLoaded: false, payments: [], ledger: [], pay: null, topupAmount: 0, poll: null, tick: null,
-    wiz: { step: 1, topic: '', slides: 12, lang: 'uz', color: 'green', style: 'random', lecture: '', references: '', fileName: '', manual: false },
+    wiz: { step: 1, topic: '', slides: 12, lang: 'uz', color: 'green', style: 'random', lecture: '', references: '', fileName: '', manual: false, images: true },
     // referat / kurs ishi buyurtmasi
     doc: { step: 1, kind: 'referat', topic: '', subject: '', pages: 12, lang: 'uz', lecture: '', references: '', fileName: '', manual: false },
     lastOrder: null,
@@ -73,6 +73,7 @@
     chev: '<path d="M9 6l6 6-6 6"/>',
     gift: '<path d="M4 11h16v9H4z"/><path d="M3 7h18v4H3z"/><path d="M12 7v13"/><path d="M12 7C9.5 7 8 6 8 4.8S9.2 3 10.4 3C11.6 3 12 5.5 12 7z"/><path d="M12 7c2.5 0 4-1 4-2.2S14.8 3 13.6 3C12.4 3 12 5.5 12 7z"/>',
     chart: '<path d="M4 20V11M10 20V4M16 20v-7M21 20H3"/>',
+    image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5.5-5.5L7 19"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.8-5 6.5-5s5.5 1.5 6.5 5"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14.5c2.3 0 4 1.3 4.8 4"/>',
   };
   function icon(name, size = 22, sw = 1.9) {
@@ -401,6 +402,20 @@
       } else view.append(h('button', { class: 'link', style: 'margin-top:8px', onclick: () => { w.manual = true; render(); } }, 'yoki matnni qoʻlda kiritish'));
       view.append(h('label', { class: 'field-l' }, 'Adabiyotlar (ixtiyoriy)'), h('textarea', { id: 'refs', style: 'min-height:84px', placeholder: 'Boʻsh qoldirsangiz, faqat aniq mavjud, mashhur manbalar qoʻshiladi', oninput: (e) => { w.references = e.target.value; } }, w.references));
 
+      // slaydlarga rasm (Vikipediya/Pexels); sukut boʻyicha yoqilgan, narx oʻzgarmaydi
+      const imgOn = () => w.images !== false;
+      let imgRow = null;
+      if (c.images) {
+        const imgVal = h('span', {}, imgOn() ? 'Bor' : 'Yoʻq');
+        imgRow = h('div', { class: 'r' }, h('span', {}, 'Rasmlar'), imgVal);
+        view.append(h('button', { class: 'card flat switch pressable' + (imgOn() ? ' on' : ''), role: 'switch', 'aria-checked': String(imgOn()), style: 'margin-top:14px', onclick: (e) => {
+          w.images = !imgOn(); e.currentTarget.classList.toggle('on', w.images); e.currentTarget.setAttribute('aria-checked', String(w.images)); imgVal.textContent = w.images ? 'Bor' : 'Yoʻq'; haptic('select');
+        } },
+        h('span', { class: 'ic' }, icon('image', 22)),
+        h('span', { class: 'grow' }, h('b', {}, 'Slaydlarga rasm qoʻshish'), h('span', { class: 'hint' }, 'Vikipediyadan haqiqiy suratlar, muallifi koʻrsatiladi. Narx oʻzgarmaydi.')),
+        h('span', { class: 'sw' }, h('i', {}))));
+      }
+
       const rem = me.balance - price(), enough = rem >= 0;
       const col = colorOf(w.color);
       view.append(h('label', { class: 'field-l' }, 'Buyurtma'),
@@ -411,6 +426,7 @@
           h('div', { class: 'r' }, h('span', {}, 'Rang'), h('span', { class: 'row', style: 'gap:6px;justify-content:flex-end' }, h('span', { style: `width:12px;height:12px;border-radius:50%;background:#${col.hex};display:inline-block` }), col.label)),
           h('div', { class: 'r' }, h('span', {}, 'Koʻrinish'), h('span', {}, w.style === 'random' ? 'Tasodifiy' : styleName(w.style) || 'Klassik')),
           h('div', { class: 'r' }, h('span', {}, 'Maʼruza'), h('span', {}, w.lecture ? 'Bor' : 'Yoʻq')),
+          imgRow,
           h('div', { class: 'r tot' }, h('span', {}, 'Jami'), h('span', {}, money(price()))),
           h('div', { class: 'r' }, h('span', {}, 'Balansingiz'), h('span', { class: enough ? '' : 'minus' }, money(me.balance)))));
       if (!enough) view.append(h('div', { class: 'hint minus', style: 'margin:0 2px' }, `Yana ${money(-rem)} kerak.`));
@@ -451,7 +467,7 @@
     const w = state.wiz, c = state.cfg;
     btn.disabled = true; btn.replaceChildren(h('span', { class: 'dot-spin' }), 'Yuborilmoqda…');
     try {
-      const r = await api('POST', '/api/orders', { topic: w.topic, slides: w.slides, lang: w.lang, color: w.color, style: w.style, lecture: w.lecture, references: w.references });
+      const r = await api('POST', '/api/orders', { topic: w.topic, slides: w.slides, lang: w.lang, color: w.color, style: w.style, lecture: w.lecture, references: w.references, images: w.images !== false });
       haptic('success');
       state.lastOrder = { id: r.orderId, topic: w.topic, slides: w.slides, price: r.price };
       Object.assign(w, { step: 1, topic: '', lecture: '', references: '', fileName: '', manual: false });
