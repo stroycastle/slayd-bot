@@ -46,6 +46,18 @@ module.exports = {
   WIKI_API_URL: process.env.WIKI_API_URL || 'https://{lang}.wikipedia.org/w/api.php', // {lang} oʻrniga til kodi qoʻyiladi
   RESEARCH_TIMEOUT_MS: num(process.env.RESEARCH_TIMEOUT_MS, 8000),
 
+  // Slaydlarga rasm: avval Vikipediya (Wikimedia Commons, kalitsiz), topilmasa Pexels (PEXELS_API_KEY boʻlsa, pexels.com/api dan bepul).
+  // IMAGES=0 qilinsa rasmli slaydlar oʻchadi. Rasm topilmasa slayd rasmsiz (matnli) chiqadi, buyurtma baribir bajariladi.
+  // MOCK_AI=1 (sinov rejimi)da tarmoq soʻrovi yuborilmasligi uchun rasmlar oʻchiq; MOCK_IMAGES=1 bilan yoqiladi.
+  IMAGES: process.env.IMAGES !== '0' && (process.env.MOCK_AI !== '1' || process.env.MOCK_IMAGES === '1'),
+  PEXELS_API_KEY: (process.env.PEXELS_API_KEY || '').trim(),
+  PEXELS_API_URL: process.env.PEXELS_API_URL || 'https://api.pexels.com/v1/search',
+  COMMONS_API_URL: process.env.COMMONS_API_URL || 'https://commons.wikimedia.org/w/api.php',
+  IMAGE_TIMEOUT_MS: num(process.env.IMAGE_TIMEOUT_MS, 7000), // bitta soʻrov (qidiruv yoki rasm yuklash) uchun
+  IMAGES_DEADLINE_MS: num(process.env.IMAGES_DEADLINE_MS, 25000), // butun taqdimot rasmlari uchun umumiy vaqt
+  IMAGE_MAX_BYTES: num(process.env.IMAGE_MAX_BYTES, 4 * 1024 * 1024),
+  IMAGE_CONCURRENCY: Math.min(6, Math.max(1, num(process.env.IMAGE_CONCURRENCY, 4))),
+
   ADMIN_IDS: (process.env.ADMIN_IDS || '')
     .split(',')
     .map((s) => s.trim())
@@ -68,6 +80,7 @@ module.exports = {
   PRICE_REFERAT: num(process.env.PRICE_REFERAT, 8000),
   PRICE_KURS: num(process.env.PRICE_KURS, 20000),
   // Referat/kurs ishida bir vaqtda nechta boʻlim yozdiriladi (bepul modellarda daqiqasiga 20 ta soʻrov chegarasi bor)
+  DOC_RETRY_MS: num(process.env.DOC_RETRY_MS, 8000), // boʻlim yozilmasa, qayta urinishdan oldin kutish (1-urinishdan keyin 1x, 2-urinishdan keyin 2x)
   DOC_CONCURRENCY: Math.min(4, Math.max(1, num(process.env.DOC_CONCURRENCY, 2))),
   MIN_TOPUP: num(process.env.MIN_TOPUP, 10000),
   // Referal dasturi: taklif qilingan foydalanuvchining har bir TASDIQLANGAN toʻldirishidan shuncha foiz taklif qilganga balansga qoʻshiladi.

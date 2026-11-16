@@ -115,6 +115,7 @@ function createWebHandler({ store, bot }) {
           docs: { referat: { min: KINDS.referat.min, max: KINDS.referat.max, def: KINDS.referat.def }, kurs: { min: KINDS.kurs.min, max: KINDS.kurs.max, def: KINDS.kurs.def } },
           priceDefense: config.PRICE_DEFENSE, defenseQuestions: config.DEFENSE_QUESTIONS, referralPercent: config.REFERRAL_PERCENT,
           minTopup: config.MIN_TOPUP, maxTopup: 5000000,
+          images: config.IMAGES,
           minSlides: config.MIN_SLIDES, maxSlides: config.MAX_SLIDES, maxLecture: config.MAX_LECTURE_CHARS, maxExtract: config.MAX_EXTRACT_BYTES,
           langs: LANGS, colors: Object.entries(PALETTES).map(([k, v]) => ({ key: k, label: v.label, hex: v.accent, dark: v.dark, soft: v.soft, tint: v.tint })),
           styles: STYLES.map((s) => ({ key: s.key, name: s.name })),

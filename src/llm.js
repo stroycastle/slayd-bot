@@ -287,7 +287,14 @@ async function viaOpenRouter(system, user, tool, maxTokens) {
   for (let i = 0; i < models.length; i++) {
     try {
       // oxirgi modeldan boshqalarida qayta urinib turmaymiz: tezroq keyingisiga oʻtamiz
-      return await runModel(models[i], system, user, tool, maxTokens, i < models.length - 1);
+      try {
+        return await runModel(models[i], system, user, tool, maxTokens, i < models.length - 1);
+      } catch (e) {
+        // "Fikrlovchi" modellar token chegarasining bir qismini oʻylashga sarflaydi va javobni kesib qoʻyadi: shu modelda 2 baravar chegara bilan bir marta qayta urinamiz
+        const bigger = Math.min(maxTokens * 2, config.AI_MAX_TOKENS);
+        if (!/uzun/.test(String(e.message)) || bigger <= maxTokens) throw e;
+        return await runModel(models[i], system, user, tool, bigger, i < models.length - 1);
+      }
     } catch (e) {
       last = e;
       if (models.length === 1 || e.status === 401 || e.status === 402 || e.status === 403) throw e;

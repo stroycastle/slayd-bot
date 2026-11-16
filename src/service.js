@@ -4,6 +4,7 @@ const path = require('path');
 const config = require('./config');
 const ai = require('./ai');
 const { buildDeck } = require('./deck');
+const images = require('./images');
 const { toPdf } = require('./pdf');
 const docgen = require('./docgen');
 const docx = require('./docx');
@@ -37,7 +38,9 @@ function shortfallRefund(order, finalSlides) {
 }
 
 async function render(deck, { color, style, lang, profile }) {
-  const pptx = await buildDeck(deck, { color, style, lang, profile });
+  // rasmli slaydlar: baytlar keshdan yoki manbadan olinadi; yuklanmaganlari oddiy (rasmsiz) koʻrinishda chiqadi
+  const imgs = await images.load(deck);
+  const pptx = await buildDeck(deck, { color, style, lang, profile, images: imgs });
   fs.mkdirSync(config.TMP_DIR, { recursive: true });
   const dir = fs.mkdtempSync(path.join(config.TMP_DIR, 'job-'));
   let pdf = null;
@@ -58,17 +61,20 @@ async function render(deck, { color, style, lang, profile }) {
   return { pptx, pdf };
 }
 
-/** params: { topic, slides, lang, color, style, lecture, references, profile } */
+/** params: { topic, slides, lang, color, style, lecture, references, profile, images } (images: false boʻlsa rasmsiz) */
 async function createDeck(params) {
-  const deck = trimToTarget(await ai.generateDeck(params), params.slides - 1);
+  const wantImages = config.IMAGES && params.images !== false;
+  const deck = ai.limitPhotos(trimToTarget(await ai.generateDeck(params), params.slides - 1), wantImages);
+  if (wantImages) await images.attach(deck);
   const files = await render(deck, params);
   return { deck, finalSlides: deck.slides.length + 1, ...files };
 }
 
 /** params: { deck, instruction, lang, color, style, profile } */
 async function editDeck(params) {
-  const res = await ai.editDeck({ deck: params.deck, instruction: params.instruction, lang: params.lang });
+  const res = await ai.editDeck({ deck: params.deck, instruction: params.instruction, lang: params.lang, images: params.images });
   if (!res.changed) return { ...res, pptx: null, pdf: null };
+  if (config.IMAGES && params.images !== false) await images.attach(res.deck); // yangi yoki mavzusi oʻzgargan rasmli slaydlar uchun
   const files = await render(res.deck, params);
   return { ...res, ...files };
 }

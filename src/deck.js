@@ -1,6 +1,7 @@
 // Slayd yasash dvigateli: AI qaytargan tuzilmali matndan (JSON) .pptx fayl yasaydi.
 const PptxGenJS = require('pptxgenjs');
 const { STYLES, STYLE_KEYS, DEFAULT_STYLE, styleOf, randomStyle, makeTheme, mix } = require('./styles');
+const images = require('./images');
 
 // ---------------------------------------------------------------- ranglar
 const PALETTES = {
@@ -14,10 +15,10 @@ const PALETTES = {
 
 // ---------------------------------------------------------------- tillar
 const LABELS = {
-  uz: { work: 'Mustaqil ish', by: 'Bajardi', group: 'Guruh', uni: 'Universitet', fac: 'Fakultet' },
-  uzc: { work: 'Мустақил иш', by: 'Бажарди', group: 'Гуруҳ', uni: 'Университет', fac: 'Факультет' },
-  ru: { work: 'Самостоятельная работа', by: 'Выполнил(а)', group: 'Группа', uni: 'Университет', fac: 'Факультет' },
-  kaa: { work: 'Óz betinshe jumıs', by: 'Orınladı', group: 'Topar', uni: 'Universitet', fac: 'Fakultet' },
+  uz: { work: 'Mustaqil ish', by: 'Bajardi', group: 'Guruh', uni: 'Universitet', fac: 'Fakultet', photo: 'Foto' },
+  uzc: { work: 'Мустақил иш', by: 'Бажарди', group: 'Гуруҳ', uni: 'Университет', fac: 'Факультет', photo: 'Фото' },
+  ru: { work: 'Самостоятельная работа', by: 'Выполнил(а)', group: 'Группа', uni: 'Университет', fac: 'Факультет', photo: 'Фото' },
+  kaa: { work: 'Óz betinshe jumıs', by: 'Orınladı', group: 'Topar', uni: 'Universitet', fac: 'Fakultet', photo: 'Foto' },
 };
 
 const DEFAULT_TITLES = {
@@ -29,7 +30,7 @@ const DEFAULT_TITLES = {
 
 const LAYOUTS = [
   'agenda', 'definition', 'cards', 'two_columns', 'table', 'process', 'keypoint', 'rows', 'conclusion', 'references',
-  'stats', 'timeline', 'hub', 'split', 'pyramid', 'cycle', 'versus', 'section',
+  'stats', 'timeline', 'hub', 'split', 'pyramid', 'cycle', 'versus', 'section', 'photo',
 ];
 
 // ---------------------------------------------------------------- o'lchamlar
@@ -549,6 +550,49 @@ function layoutSplit(s, P, d) {
   });
 }
 
+/**
+ * Rasmli slayd: bir tomonda surat (muallif maʼlumoti bilan) va uning ostida asosiy fikr, boshqa tomonda izohlar.
+ * d.photo = { buf, mime, w, h, credit } (images.load natijasi), d.flip = rasm oʻngda, d.photoLabel = "Foto".
+ */
+function layoutPhoto(s, P, d) {
+  const ph = d.photo;
+  const items = d.items.slice(0, 4);
+  const px = d.flip ? W - M - 4.9 : M;
+  const py = 1.75;
+  const pw = 4.9;
+  const ih = 3.2; // surat balandligi
+  const lh = 4.95 - ih - 0.15; // asosiy fikr paneli balandligi
+  s.addImage({
+    data: `data:${ph.mime};base64,${ph.buf.toString('base64')}`,
+    x: px, y: py, w: pw, h: (pw * ph.h) / ph.w,
+    sizing: { type: 'cover', w: pw, h: ih },
+    altText: d.imageQuery || d.title || '',
+  });
+  outlineShape(s, 'rect', px, py, pw, ih, P.accent, 1.5);
+  if (ph.credit) {
+    rectShape(s, px, py + ih - 0.3, pw, 0.3, '000000', 45);
+    addFit(s, `${d.photoLabel || 'Foto'}: ${ph.credit}`, px + 0.1, py + ih - 0.28, pw - 0.2, 0.26, { max: 8, min: 7, color: 'FFFFFF', valign: 'middle' });
+  }
+  const ly = py + ih + 0.15;
+  card(s, P, px, ly, pw, lh, P.accent);
+  addFit(s, d.lead, px + 0.3, ly + 0.15, pw - 0.6, lh - 0.3, { max: 21, min: 13, font: FH, color: 'FFFFFF', valign: 'middle' });
+  const x0 = d.flip ? M : px + pw + 0.5;
+  const w0 = CW - pw - 0.5;
+  const n = items.length;
+  const gap = 0.2;
+  const h = (4.95 - (n - 1) * gap) / n;
+  items.forEach((it, i) => {
+    const y = py + i * (h + gap);
+    s.addShape('rect', { x: x0, y, w: 0.08, h, fill: { color: P.accent }, line: { type: 'none' } });
+    if (it.head) {
+      addFit(s, it.head, x0 + 0.3, y + 0.04, w0 - 0.3, 0.45, { max: 21, min: 14, bold: true, color: P.head, valign: 'middle' });
+      addFit(s, it.text, x0 + 0.3, y + 0.52, w0 - 0.3, h - 0.56, { max: 17, min: 12, color: P.ink });
+    } else {
+      addFit(s, it.text, x0 + 0.3, y + 0.05, w0 - 0.3, h - 0.1, { max: 19, min: 12, color: P.ink, valign: 'middle' });
+    }
+  });
+}
+
 /** Piramida: yuqoridan pastga kengayib boruvchi pogʻonalar, har birining yonida izoh. */
 function layoutPyramid(s, P, d) {
   const items = d.items.slice(0, 5);
@@ -661,6 +705,7 @@ const DRAW = {
   timeline: layoutTimeline,
   hub: layoutHub,
   split: layoutSplit,
+  photo: layoutPhoto,
   pyramid: layoutPyramid,
   cycle: layoutCycle,
   versus: layoutVersus,
@@ -807,6 +852,8 @@ function normalizeDeck(raw) {
       columns: arr(r.columns).map((c) => ({ head: clean(c && c.head, 100), bullets: arr(c && c.bullets).map((b) => clean(b, 220)).filter(Boolean) })).filter((c) => c.bullets.length),
       table: null,
       references: arr(r.references).map((x) => clean(x, 300)).filter(Boolean),
+      imageQuery: clean(r.imageQuery, 90),
+      image: null,
     };
     if (r.table && Array.isArray(r.table.header)) {
       const header = r.table.header.map((h) => clean(h, 60)).slice(0, 4);
@@ -833,12 +880,17 @@ function normalizeDeck(raw) {
     else if (L === 'timeline' && s.items.filter((i) => i.head).length < 3) s.layout = s.items.length >= 3 ? 'process' : s.items.length === 2 ? 'cards' : 'definition';
     else if (L === 'hub' && (!s.lead || s.items.length < 3)) s.layout = s.items.length >= 2 ? 'cards' : 'definition';
     else if (L === 'split' && (!s.lead || s.items.length < 2)) s.layout = s.items.length >= 2 ? 'rows' : 'definition';
+    else if (L === 'photo' && (!s.lead || s.items.length < 2 || !s.imageQuery)) s.layout = s.lead && s.items.length >= 2 ? 'split' : s.items.length >= 2 ? 'rows' : 'definition';
     else if ((L === 'pyramid' || L === 'cycle') && s.items.length < 3) s.layout = s.items.length === 2 ? 'cards' : 'definition';
     else if (L === 'versus' && s.columns.length < 2) s.layout = s.items.length >= 2 ? 'rows' : 'definition';
     else if (L === 'section') {
       if (!s.title) s.title = s.lead.slice(0, 60);
       if (!s.title) continue;
     }
+    if (s.layout === 'photo') {
+      const im = r.image;
+      if (images.validImage(im) && im.credit) s.image = { url: im.url, w: im.w, h: im.h, credit: clean(im.credit, 120) };
+    } else s.imageQuery = '';
     if (s.layout === 'keypoint' && !s.lead) s.layout = s.items.length >= 2 ? 'rows' : 'definition';
     if (s.layout === 'definition' && !s.lead) s.lead = (s.items[0] && (s.items[0].text || s.items[0].head)) || s.title;
     if (!s.title && s.layout !== 'references') s.title = s.layout === 'conclusion' ? '' : s.lead.slice(0, 60);
@@ -867,9 +919,20 @@ async function buildDeck(deck, opts = {}) {
   titleSlide(pres, P, deck, opts.profile, lang);
   const meta = { deckTitle: deck.title };
   let sectionNo = 0;
-  for (const d0 of deck.slides) {
+  let photoNo = 0;
+  const imgs = opts.images instanceof Map ? opts.images : null;
+  for (const [idx, d0] of deck.slides.entries()) {
     const d = Object.assign({}, d0);
     if (d.layout === 'section') d.sectionNo = ++sectionNo;
+    if (d.layout === 'photo') {
+      // rasm yuklanmagan boʻlsa, slayd oddiy "split" koʻrinishida chiqadi (maʼlumot yoʻqolmaydi)
+      const ph = imgs && imgs.get(idx);
+      if (ph) {
+        d.photo = ph;
+        d.photoLabel = LABELS[lang].photo;
+        d.flip = photoNo++ % 2 === 1;
+      } else d.layout = 'split';
+    }
     if (!d.title && DEFAULT_TITLES[lang][d.layout]) d.title = DEFAULT_TITLES[lang][d.layout];
     const dark = DARK_LAYOUTS.has(d.layout);
     const s = slideBase(pres, P, d, meta, dark);

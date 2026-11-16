@@ -37,7 +37,9 @@ function validate(b) {
   if (!STYLE_KEYS.includes(style)) return { ok: false, error: 'Koʻrinish notoʻgʻri.' };
   const lecture = clean(b.lecture, config.MAX_LECTURE_CHARS);
   const references = clean(b.references, 6000);
-  return { ok: true, value: { topic, slides, lang: toInternalLang(b.lang), color: b.color, style, lecture: lecture || '', references: references || '' } };
+  // slaydlarga rasm qoʻshish: sukut boʻyicha yoqilgan, faqat aniq "yoʻq" deyilsa oʻchadi
+  const images = !(b.images === false || b.images === 0 || b.images === 'false' || b.images === '0');
+  return { ok: true, value: { topic, slides, lang: toInternalLang(b.lang), color: b.color, style, lecture: lecture || '', references: references || '', images } };
 }
 
 const docPrice = (kind) => (kind === 'kurs' ? config.PRICE_KURS : config.PRICE_REFERAT);
@@ -120,7 +122,7 @@ function createOrders({ store, bot }) {
     if (!store.charge(userId, price, `Taqdimot: ${d.topic.slice(0, 40)}`)) {
       return { code: 402, body: { error: 'balance', need: price - user.balance, message: 'Balansda mablagʻ yetarli emas.' } };
     }
-    const order = store.addOrder({ userId, type: 'deck', source: 'miniapp', topic: d.topic, slides: d.slides, lang: d.lang, color: d.color, style: d.style, price, hasLecture: !!d.lecture });
+    const order = store.addOrder({ userId, type: 'deck', source: 'miniapp', topic: d.topic, slides: d.slides, lang: d.lang, color: d.color, style: d.style, price, hasLecture: !!d.lecture, images: d.images !== false });
     run(userId, order, d); // fon rejimida
     return { code: 200, body: { orderId: order.id, price, balance: store.getUser(userId).balance } };
   }

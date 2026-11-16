@@ -485,7 +485,7 @@ function createBot({ store, download }) {
     try {
       const profile = (store.getUser(userId) || {}).profile || {};
       const res = await withTyping(chatId, () =>
-        service.editDeck({ deck: parent.deck, instruction, lang: parent.lang, color: parent.color, style: parent.style, profile })
+        service.editDeck({ deck: parent.deck, instruction, lang: parent.lang, color: parent.color, style: parent.style, profile, images: parent.images })
       );
       if (!res.changed) {
         store.updateOrder(edit.id, { status: 'failed', error: 'oʻzgarish yoʻq' });
