@@ -837,7 +837,7 @@ function normItems(v) {
 }
 
 /** AI javobidagi har bir slaydni tekshiradi, noto'g'ri tuzilganini mosiga o'tkazadi yoki tashlab yuboradi. */
-function normalizeDeck(raw) {
+function normalizeDeck(raw, opts = {}) {
   raw = raw || {};
   const out = { title: clean(raw.title, 140) || 'Taqdimot', subtitle: clean(raw.subtitle, 160), slides: [] };
   for (const r of arr(raw.slides)) {
@@ -890,7 +890,7 @@ function normalizeDeck(raw) {
     if (s.layout === 'photo') {
       const im = r.image;
       if (images.validImage(im) && im.credit) s.image = { url: im.url, w: im.w, h: im.h, credit: clean(im.credit, 120) };
-    } else s.imageQuery = '';
+    } else if (!opts.keepQuery) s.imageQuery = ''; // keepQuery: rasm mavzusi keyin (ai.planPhotos) ishlatiladi
     if (s.layout === 'keypoint' && !s.lead) s.layout = s.items.length >= 2 ? 'rows' : 'definition';
     if (s.layout === 'definition' && !s.lead) s.lead = (s.items[0] && (s.items[0].text || s.items[0].head)) || s.title;
     if (!s.title && s.layout !== 'references') s.title = s.layout === 'conclusion' ? '' : s.lead.slice(0, 60);

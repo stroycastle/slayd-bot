@@ -64,7 +64,7 @@ async function render(deck, { color, style, lang, profile }) {
 /** params: { topic, slides, lang, color, style, lecture, references, profile, images } (images: false boʻlsa rasmsiz) */
 async function createDeck(params) {
   const wantImages = config.IMAGES && params.images !== false;
-  const deck = ai.limitPhotos(trimToTarget(await ai.generateDeck(params), params.slides - 1), wantImages);
+  const deck = await ai.ensurePhotos(trimToTarget(await ai.generateDeck(params), params.slides - 1), { topic: params.topic, enabled: wantImages });
   if (wantImages) await images.attach(deck);
   const files = await render(deck, params);
   return { deck, finalSlides: deck.slides.length + 1, ...files };

@@ -6,7 +6,8 @@
 // Litsenziya: faqat CC0 / CC BY / CC BY-SA / public domain. NC va ND (oʻzgartirish taqiqlangan) rad etiladi.
 const config = require('./config');
 
-const UA = 'SlaydBot/1.0 (Telegram presentation bot)';
+// Wikimedia siyosati: User-Agentda aloqa maʼlumoti (sayt yoki pochta) boʻlishi shart, aks holda soʻrovlar cheklanadi
+const UA = `SlaydBot/1.0 (https://t.me/${config.BOT_USERNAME}; Telegram presentation bot) node`;
 const HOSTS = new Set(['upload.wikimedia.org', 'images.pexels.com']);
 const MIN_W = 600; // yuklangan rasmning minimal oʻlchami (px)
 const MIN_H = 380;
@@ -224,7 +225,7 @@ async function searchCommons(query) {
     gsrlimit: '12',
     prop: 'imageinfo',
     iiprop: 'url|size|mime|extmetadata',
-    iiurlwidth: '1000',
+    iiurlwidth: '960', // Wikimedia faqat standart kenglikdagi kichraytirilgan nusxalarni beradi (…, 500, 960, 1280, …)
     iiextmetadatafilter: 'LicenseShortName|Artist',
   });
   const j = await getJson(`${config.COMMONS_API_URL}?${p}`);
@@ -289,7 +290,8 @@ async function fetchCandidate(c) {
  * Soʻrov boʻyicha rasm topadi: avval Vikipediya, topilmasa Pexels. Topilmasa null.
  * exclude (Set): boshqa slaydlarda ishlatilgan manzillar; tanlangan manzil shu yerga qoʻshiladi.
  */
-async function findImage(query, { exclude } = {}) {
+async function findImage(query, { exclude, why } = {}) {
+  const note = (m) => { if (why && why.length < 12) why.push(m); };
   const q = cleanQuery(query);
   if (!q) return null;
   const key = q.toLowerCase();
@@ -306,9 +308,11 @@ async function findImage(query, { exclude } = {}) {
       let list;
       try {
         list = await search(v);
-      } catch {
+      } catch (e) {
+        note(`${search === searchCommons ? 'Vikipediya' : 'Pexels'} qidiruvi: ${String(e.message).slice(0, 60)}`);
         continue;
       }
+      if (!list.length && search === searchCommons) note(`Vikipediyada "${v}" boʻyicha mos rasm yoʻq`);
       let tried = 0;
       for (const c of list) {
         if (tried >= 3) break;
@@ -322,8 +326,8 @@ async function findImage(query, { exclude } = {}) {
             cacheFound(key, { url: r.url, credit: r.credit, source: r.source });
             return r;
           }
-        } catch {
-          /* keyingisiga oʻtamiz */
+        } catch (e) {
+          note(`yuklash: ${String(e.message).slice(0, 60)}`);
         }
         if (exclude) exclude.delete(c.url);
       }
@@ -340,19 +344,25 @@ async function attach(deck, { deadlineMs } = {}) {
   const used = new Set(deck.slides.filter((s) => s && validImage(s.image)).map((s) => s.image.url));
   const end = Date.now() + (deadlineMs || config.IMAGES_DEADLINE_MS);
   let ok = 0;
+  const why = [];
   await mapLimit(todo, config.IMAGE_CONCURRENCY, async (s) => {
     const left = end - Date.now();
-    if (left < 1000) return;
+    if (left < 1000) {
+      why.push('vaqt tugadi');
+      return;
+    }
     try {
-      const r = await withTimeout(findImage(s.imageQuery, { exclude: used }), left);
+      const r = await withTimeout(findImage(s.imageQuery, { exclude: used, why }), left);
       if (r) {
         s.image = { url: r.url, w: r.w, h: r.h, credit: r.credit };
         ok++;
       }
-    } catch {
-      /* rasmsiz qoladi */
+    } catch (e) {
+      why.push(String(e.message).slice(0, 60)); // slayd rasmsiz qoladi
     }
   });
+  // Render logida koʻrinadi: rasm nega topilmaganini aniqlash uchun
+  console.log(`🖼  Rasmlar: ${ok}/${todo.length} slaydga topildi` + (ok < todo.length && why.length ? ` · ${[...new Set(why)].slice(0, 4).join('; ')}` : ''));
   return ok;
 }
 
@@ -385,4 +395,18 @@ async function load(deck, { deadlineMs } = {}) {
   return out;
 }
 
-module.exports = { attach, load, findImage, searchCommons, searchPexels, imageInfo, allowedUrl, licenseOk, cleanQuery, validImage, clearCache };
+/** Ishga tushganda bir marta: Vikipediyadan rasm olish ishlayaptimi (natija logga yoziladi, hech narsani buzmaydi). */
+async function selfTest() {
+  if (!config.IMAGES) return false;
+  const why = [];
+  try {
+    const r = await findImage('Registan Samarkand', { why });
+    console.log(r ? `🖼  Rasm qidiruvi ishlayapti (${r.source}, ${r.w}x${r.h})` : `⚠️  Rasm qidiruvi rasm topmadi: ${why.join('; ') || 'sabab nomaʼlum'}`);
+    return !!r;
+  } catch (e) {
+    console.warn('⚠️  Rasm qidiruvi xato berdi:', String(e.message).slice(0, 100));
+    return false;
+  }
+}
+
+module.exports = { selfTest, attach, load, findImage, searchCommons, searchPexels, imageInfo, allowedUrl, licenseOk, cleanQuery, validImage, clearCache };

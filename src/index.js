@@ -103,6 +103,7 @@ let webServer = null;
       const { path, secret } = hooks(config.BOT_TOKEN);
       await bot.telegram.setWebhook(config.WEBHOOK_URL + path, { secret_token: secret, max_connections: 5 });
       console.log(`✅ Bot ishga tushdi (webhook): @${bot.botInfo.username}`);
+      if (config.IMAGES) setTimeout(() => require('./images').selfTest().catch(() => {}), 5000).unref();
       if (config.KEEP_ALIVE_MIN > 0) {
         startKeepAlive({ url: config.WEBHOOK_URL, everyMs: config.KEEP_ALIVE_MIN * 60 * 1000 });
         console.log(`🏓 Uyquga qarshi: har ${config.KEEP_ALIVE_MIN} daqiqada oʻziga soʻrov yuboriladi.`);
