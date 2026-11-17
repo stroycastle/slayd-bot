@@ -17,7 +17,7 @@ const CACHE_ITEMS = 60;
 const CACHE_BYTES = 24 * 1024 * 1024;
 
 // Sarlavhasida shular boʻlgan fayllar slaydga yaramaydi (logotip, belgi, skrinshot, skan va h.k.)
-const TITLE_BLOCK = /logo|icon|signature|wordmark|emblem|coat[ _]of[ _]arms|screenshot|stamp|banknote|poster|\bcover\b|scan|diagram|chart|graph|infographic|clipart|template|sprite|button|badge/i;
+const TITLE_BLOCK = /\b(logos?|icons?|signatures?|wordmarks?|emblems?|screenshots?|stamps?|banknotes?|posters?|covers?|scans?|diagrams?|charts?|graphs?|infographics?|cliparts?|templates?|sprites?|buttons?|badges?)\b|coat[ _]of[ _]arms/i;
 
 const squash = (v, max) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -213,15 +213,22 @@ const htmlText = (s) =>
 
 const cut = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
 
+/** Nega rasm topilmaganini qisqa yozadi (Render logi uchun): "jami 12: litsenziya 7 [CC BY-NC 2.0], kichik 3". */
+function explain(st) {
+  if (!st) return '';
+  const parts = Object.entries(st.rej).map(([k, v]) => `${k} ${v}`);
+  return ` (jami ${st.total}${parts.length ? ': ' + parts.join(', ') : ''}${st.samples.length ? ' [' + st.samples.join(' | ') + ']' : ''})`;
+}
+
 /** Wikimedia Commons: soʻrov boʻyicha mos rasmlar (eng mosi birinchi). */
-async function searchCommons(query) {
+async function searchCommons(query, { bitmap = true } = {}) {
   const p = new URLSearchParams({
     action: 'query',
     format: 'json',
     formatversion: '2',
     generator: 'search',
     gsrnamespace: '6',
-    gsrsearch: `${query} filetype:bitmap`,
+    gsrsearch: bitmap ? `${query} filetype:bitmap` : query,
     gsrlimit: '12',
     prop: 'imageinfo',
     iiprop: 'url|size|mime|extmetadata',
@@ -232,28 +239,55 @@ async function searchCommons(query) {
   const raw = j && j.query && j.query.pages;
   const pages = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? Object.values(raw) : [];
   const out = [];
+  const rej = {};
+  const samples = [];
+  const no = (why, sample) => {
+    rej[why] = (rej[why] || 0) + 1;
+    if (sample && samples.length < 3) samples.push(String(sample).slice(0, 40));
+  };
   for (const pg of pages) {
     const ii = pg && Array.isArray(pg.imageinfo) ? pg.imageinfo[0] : null;
-    if (!ii) continue;
+    if (!ii) {
+      no('maʼlumotsiz');
+      continue;
+    }
     const title = String(pg.title || '');
-    if (TITLE_BLOCK.test(title)) continue;
-    if (ii.mime !== 'image/jpeg' && ii.mime !== 'image/png') continue;
+    if (TITLE_BLOCK.test(title)) {
+      no('sarlavha', title);
+      continue;
+    }
+    if (ii.mime !== 'image/jpeg' && ii.mime !== 'image/png') {
+      no('turi', ii.mime);
+      continue;
+    }
     const url = ii.thumburl || ii.url;
-    if (!allowedUrl(url)) continue;
+    if (!allowedUrl(url)) {
+      no('manzil', url);
+      continue;
+    }
     const w = Number(ii.thumbwidth || ii.width);
     const h = Number(ii.thumbheight || ii.height);
-    if (!(w >= MIN_W && h >= MIN_H)) continue;
-    if (Number(ii.width) < 800 || Number(ii.height) < 500) continue;
+    if (!(w >= MIN_W && h >= MIN_H) || Number(ii.width) < 800 || Number(ii.height) < 500) {
+      no('kichik', `${ii.width}x${ii.height}`);
+      continue;
+    }
     const aspect = w / h;
-    if (aspect < 0.8 || aspect > 2.4) continue;
+    if (aspect < 0.8 || aspect > 2.4) {
+      no('nisbat', aspect.toFixed(2));
+      continue;
+    }
     const meta = ii.extmetadata || {};
     const lic = htmlText(meta.LicenseShortName && meta.LicenseShortName.value);
-    if (!licenseOk(lic)) continue;
+    if (!licenseOk(lic)) {
+      no('litsenziya', lic || 'yoʻq');
+      continue;
+    }
     const artist = cut(htmlText(meta.Artist && meta.Artist.value), 34);
     const credit = `${artist ? artist + ', ' : ''}${cut(lic, 20)} · Wikimedia Commons`;
     const rank = Number.isFinite(pg.index) ? pg.index : out.length + 1;
     out.push({ url, credit, source: 'commons', score: rank + Math.abs(Math.log(aspect / TARGET_ASPECT)) * 3 });
   }
+  out.stats = { total: pages.length, rej, samples };
   return out.sort((a, b) => a.score - b.score);
 }
 
@@ -308,11 +342,13 @@ async function findImage(query, { exclude, why } = {}) {
       let list;
       try {
         list = await search(v);
+        // "filetype:bitmap" baʼzan hech narsa qaytarmaydi: operatorsiz qayta urinamiz (turi baribir tekshiriladi)
+        if (search === searchCommons && !list.length && list.stats && list.stats.total === 0) list = await searchCommons(v, { bitmap: false });
       } catch (e) {
         note(`${search === searchCommons ? 'Vikipediya' : 'Pexels'} qidiruvi: ${String(e.message).slice(0, 60)}`);
         continue;
       }
-      if (!list.length && search === searchCommons) note(`Vikipediyada "${v}" boʻyicha mos rasm yoʻq`);
+      if (!list.length && search === searchCommons) note(`Vikipediyada "${v}" boʻyicha mos rasm yoʻq${explain(list.stats)}`);
       let tried = 0;
       for (const c of list) {
         if (tried >= 3) break;
