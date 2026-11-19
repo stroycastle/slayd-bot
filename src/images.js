@@ -8,7 +8,8 @@ const config = require('./config');
 
 // Wikimedia siyosati: User-Agentda aloqa maʼlumoti (sayt yoki pochta) boʻlishi shart, aks holda soʻrovlar cheklanadi
 const UA = `SlaydBot/1.0 (https://t.me/${config.BOT_USERNAME}; Telegram presentation bot) node`;
-const HOSTS = new Set(['upload.wikimedia.org', 'images.pexels.com']);
+// Wikimedia kichraytirilgan nusxalarni thumb.wikimedia.org dan, asl fayllarni upload.wikimedia.org dan beradi
+const HOSTS = new Set(['upload.wikimedia.org', 'thumb.wikimedia.org', 'images.pexels.com']);
 const MIN_W = 600; // yuklangan rasmning minimal oʻlchami (px)
 const MIN_H = 380;
 const MAX_DIM = 7000;

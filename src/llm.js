@@ -278,13 +278,26 @@ async function runModel(model, system, user, tool, maxTokens, fast) {
   throw new Error(toolsRejected ? `${r.err} (model tool chaqiruvini ham, JSON rejimini ham bajarmadi)` : r.err);
 }
 
+const isFreeModel = (m) => /:free$/.test(String(m));
+let creditOutUntil = 0; // shu vaqtgacha pullik modellar soʻralmaydi (5 daqiqadan keyin qayta tekshiriladi: pul tashlangan boʻlishi mumkin)
+let creditNoticeAt = 0;
+function creditOut() {
+  creditOutUntil = Date.now() + 5 * 60e3;
+  if (Date.now() - creditNoticeAt < 30 * 60e3) return;
+  creditNoticeAt = Date.now();
+  emit('❗ OpenRouter hisobida pul tugadi (402). Pullik modellar oʻtkazib yuborilmoqda, bot bepul zaxira modellarda ishlayapti (kuniga cheklangan, sekinroq). openrouter.ai/settings/credits ga pul tashlang.');
+}
+
 /** Modellar zanjiri: asosiy model + zaxiralar. Asosiysi band (429), xato yoki tushunarsiz javob bersa, keyingisiga oʻtadi.
  *  Kalit/hisob xatolari (401/402/403) modelga bogʻliq emas, ular darrov chiqadi. */
 async function viaOpenRouter(system, user, tool, maxTokens) {
   const models = [config.OPENROUTER_MODEL, ...config.OPENROUTER_FALLBACK_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
   const errors = [];
   let last;
+  // Hisobda pul tugagan (402) boʻlsa, pullik modellar oʻtkazib yuboriladi va bepul (:free) zaxiralar ishlatiladi
+  let noCredit = Date.now() < creditOutUntil;
   for (let i = 0; i < models.length; i++) {
+    if (noCredit && !isFreeModel(models[i]) && models.slice(i + 1).some(isFreeModel)) continue;
     try {
       // oxirgi modeldan boshqalarida qayta urinib turmaymiz: tezroq keyingisiga oʻtamiz
       try {
@@ -297,7 +310,15 @@ async function viaOpenRouter(system, user, tool, maxTokens) {
       }
     } catch (e) {
       last = e;
-      if (models.length === 1 || e.status === 401 || e.status === 402 || e.status === 403) throw e;
+      if (models.length === 1 || e.status === 401 || e.status === 403) throw e;
+      if (e.status === 402) {
+        // pul tugagan: faqat keyinda bepul model qolgan boʻlsa davom etamiz, aks holda xatoni chiqaramiz
+        if (!models.slice(i + 1).some(isFreeModel)) throw e;
+        noCredit = true;
+        creditOut();
+        errors.push(`${models[i]}: hisobda pul yoʻq (402)`);
+        continue;
+      }
       errors.push(`${models[i]}: ${String(e.message).slice(0, 140)}`);
       console.warn(`Model ${models[i]} ishlamadi, keyingisiga oʻtyapman: ${String(e.message).slice(0, 160)}`);
     }
@@ -361,4 +382,9 @@ async function accountInfo() {
   return out.join('\n');
 }
 
-module.exports = { callTool, extractJson, accountInfo, onKeyEvent, setKeys };
+function resetCreditState() {
+  creditOutUntil = 0;
+  creditNoticeAt = 0;
+}
+
+module.exports = { callTool, extractJson, accountInfo, onKeyEvent, setKeys, resetCreditState };
