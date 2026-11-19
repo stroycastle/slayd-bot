@@ -8,12 +8,23 @@ const ACCESS_BRACKET = new RegExp(`\\s*[(\\[]\\s*${ACCESS}[^)\\]]*[)\\]]`, 'gi')
 const ACCESS_PLAIN = new RegExp(`[,;.]?\\s*${ACCESS}\\s*:?\\s*[\\d./-]{6,10}\\.?`, 'gi');
 // https://...  www....
 const URL_RE = /[,;]?\s*(?:https?:\/\/|www\.)[^\s)]+/gi;
+// Toʻliq sana (2026-11-18, 19.11.2026): manba yozuvida kerak emas (yil yoki "(2024)" qoladi)
+const DATE = '(?:\\d{4}[-./]\\d{1,2}[-./]\\d{1,2}|\\d{1,2}[-./]\\d{1,2}[-./]\\d{2,4})';
+// qavs ichida toʻliq sana boʻlsa, butun qavs olib tashlanadi: "(ingliz tilida, 2026-11-18 yangilangan)"
+const PAREN_DATE = new RegExp(`\\s*[(\\[][^)\\]]*${DATE}[^)\\]]*[)\\]]`, 'g');
+// qavssiz: ", yangilangan: 2026-11-18", "— updated 2026-11-18", "2026-11-18 yangilangan"
+const UPDATED = '(?:updated|yangilangan|yangilandi|обновлено|обновлён|jańalanǵan|jańalandı)';
+const UPDATED_PLAIN = new RegExp(`[,;—–-]?\\s*(?:${UPDATED}\\s*:?\\s*${DATE}|${DATE}\\s*(?:da\\s+)?${UPDATED})`, 'gi');
+// faqat tilni bildiruvchi qavs: "(ingliz tilida)", "(in English)", "(на английском языке)"
+const LANG_NOTE = /\s*[(\[]\s*(?:(?:ingliz|inglizcha|rus|ruscha|oʻzbek|uzbek|o'zbek)\s*tilida|in\s+(?:english|russian|uzbek)|на\s+(?:английском|русском)(?:\s+языке)?|english|ingliz)\s*[)\]]/gi;
 
 /** Bitta manba qatorini tozalaydi. Juda qisqa qolsa (<8 belgi) '' qaytaradi. */
 function scrubReference(s, { links = true } = {}) {
   let t = String(s == null ? '' : s);
+  // links:true — AI yozgan roʻyxat (qattiq tozalanadi); links:false — talabaning oʻz roʻyxati (faqat "murojaat sanasi" olinadi)
+  if (links) t = t.replace(PAREN_DATE, '');
   t = t.replace(ACCESS_BRACKET, '').replace(ACCESS_PLAIN, '');
-  if (links) t = t.replace(URL_RE, '');
+  if (links) t = t.replace(UPDATED_PLAIN, '').replace(LANG_NOTE, '').replace(URL_RE, '');
   t = t
     .replace(/\(\s*\)/g, '')
     .replace(/\s+/g, ' ')

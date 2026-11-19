@@ -102,7 +102,8 @@ function format(sources, t) {
   const parts = [];
   let total = 0;
   sources.forEach((s, i) => {
-    const head = `[${i + 1}] ${s.title}${s.site ? ` (${s.site})` : ''}${s.url ? ` ${s.url}` : ''}${s.date ? ` — updated ${s.date}` : ''}`;
+    // Sarlavhada havola va sana yoʻq: AI ularni manbalar slaydiga koʻchirib yozmasligi uchun (u yerda faqat "Sayt: sarlavha" boʻladi)
+    const head = `[${i + 1}] ${s.title}${s.site ? ` (${/(^|\.)wikipedia\.org$/.test(s.site) ? 'Wikipedia' : s.site})` : ''}`;
     const block = `${head}\n${s.text}`;
     if (total + block.length > MAX_TOTAL) return;
     total += block.length;
