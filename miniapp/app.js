@@ -753,7 +753,7 @@
     const panel = h('div', {});
     view.append(panel);
     view.append(promoCard());
-    const amounts = [c.minTopup, 25000, 50000, 100000].filter((v, i, a) => v >= c.minTopup && a.indexOf(v) === i);
+    const amounts = [c.minTopup, 10000, 20000, 30000, 50000, 100000].filter((v, i, a) => v >= c.minTopup && a.indexOf(v) === i);
     const drawTopup = () => {
       panel.replaceChildren();
       if (state.pay) return drawPay();
