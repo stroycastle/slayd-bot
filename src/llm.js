@@ -382,9 +382,37 @@ async function accountInfo() {
   return out.join('\n');
 }
 
+/**
+ * OpenRouter hisobidagi qoldiq (USD). Bir nechta kalit boʻlsa, eng kichik qoldiq (ogohlantirish uchun ehtiyotkor). Aniqlab boʻlmasa null.
+ * Hisobi cheksiz (limit qoʻyilmagan) va /credits ochiq boʻlmagan kalit uchun null qaytadi, ogohlantirish yuborilmaydi.
+ */
+async function creditRemaining() {
+  if (config.MOCK_AI || config.AI_PROVIDER !== 'openrouter' || !pool.length) return null;
+  const vals = [];
+  for (const k of pool) {
+    let v = null;
+    try {
+      const c = await orGet('/credits', k.key);
+      if (typeof c.total_credits === 'number' && typeof c.total_usage === 'number') v = c.total_credits - c.total_usage;
+    } catch (_) {
+      /* keyingi usulga oʻtamiz */
+    }
+    if (v == null) {
+      try {
+        const i = await orGet('/key', k.key);
+        if (i.limit != null && typeof i.limit_remaining === 'number') v = i.limit_remaining;
+      } catch (_) {
+        /* aniqlab boʻlmadi */
+      }
+    }
+    if (typeof v === 'number' && Number.isFinite(v)) vals.push(v);
+  }
+  return vals.length ? Math.min(...vals) : null;
+}
+
 function resetCreditState() {
   creditOutUntil = 0;
   creditNoticeAt = 0;
 }
 
-module.exports = { callTool, extractJson, accountInfo, onKeyEvent, setKeys, resetCreditState };
+module.exports = { callTool, extractJson, accountInfo, creditRemaining, onKeyEvent, setKeys, resetCreditState };

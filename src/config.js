@@ -66,12 +66,21 @@ module.exports = {
   CARD_NUMBER: process.env.CARD_NUMBER || '0000 0000 0000 0000',
   CARD_HOLDER: process.env.CARD_HOLDER || 'ISM FAMILIYA',
 
-  // Butun taqdimot narxi, slayd soniga bogʻliq emas (8 ta ham, 30 ta ham bir xil). 0 boʻlsa, slayd boshiga PRICE_SLIDE olinadi.
+  // Butun taqdimot narxi: 8 dan DECK_LARGE_FROM-1 gacha slayd — PRICE_DECK, DECK_LARGE_FROM va undan koʻp slayd — PRICE_DECK_LARGE
+  // (masalan, 8–20 slayd 5 000, 21–30 slayd 7 000). PRICE_DECK_LARGE=0 boʻlsa, hamma uchun bir xil PRICE_DECK.
+  // PRICE_DECK=0 boʻlsa, slayd boshiga PRICE_SLIDE olinadi.
   PRICE_DECK: num(process.env.PRICE_DECK, 5000),
+  PRICE_DECK_LARGE: num(process.env.PRICE_DECK_LARGE, 7000),
+  DECK_LARGE_FROM: num(process.env.DECK_LARGE_FROM, 21),
   PRICE_SLIDE: num(process.env.PRICE_SLIDE, 5000), // faqat PRICE_DECK=0 boʻlganda ishlaydi
   PRICE_EDIT: num(process.env.PRICE_EDIT, 3000), // 1 ta tahrir
   deckPrice(slides) {
-    return this.PRICE_DECK > 0 ? this.PRICE_DECK : slides * this.PRICE_SLIDE;
+    if (!(this.PRICE_DECK > 0)) return slides * this.PRICE_SLIDE;
+    return this.PRICE_DECK_LARGE > 0 && slides >= this.DECK_LARGE_FROM ? this.PRICE_DECK_LARGE : this.PRICE_DECK;
+  },
+  /** Narx pogʻonali (kichik/katta) boʻlsa true: matnlarda ikkala narx koʻrsatiladi. */
+  deckTiered() {
+    return this.PRICE_DECK > 0 && this.PRICE_DECK_LARGE > 0 && this.DECK_LARGE_FROM > this.MIN_SLIDES && this.DECK_LARGE_FROM <= this.MAX_SLIDES && this.PRICE_DECK_LARGE !== this.PRICE_DECK;
   },
   // Himoyaga tayyorgarlik: tayyor taqdimot uchun oʻqituvchi savollari va javoblari (Mini App). 0 boʻlsa bepul.
   PRICE_DEFENSE: num(process.env.PRICE_DEFENSE, 2000),
@@ -83,6 +92,16 @@ module.exports = {
   DOC_RETRY_MS: num(process.env.DOC_RETRY_MS, 8000), // boʻlim yozilmasa, qayta urinishdan oldin kutish (1-urinishdan keyin 1x, 2-urinishdan keyin 2x)
   DOC_CONCURRENCY: Math.min(4, Math.max(1, num(process.env.DOC_CONCURRENCY, 2))),
   MIN_TOPUP: num(process.env.MIN_TOPUP, 5000),
+  // Tasdiqlanmagan chek: admin tasdiqlamaguncha adminga har PAY_REMIND_MIN daqiqada eslatma yuboriladi, PAY_REMIND_UNTIL_MIN daqiqadan keyin toʻxtaydi. 0 boʻlsa oʻchadi.
+  PAY_REMIND_MIN: num(process.env.PAY_REMIND_MIN, 2),
+  PAY_REMIND_UNTIL_MIN: num(process.env.PAY_REMIND_UNTIL_MIN, 30),
+  // OpenRouter hisobida qoldiq LOW_CREDIT_USD dollardan tushsa, adminga ogohlantirish (har CREDIT_CHECK_MIN daqiqada tekshiriladi, 12 soatda koʻpi bilan 1 marta). 0 boʻlsa oʻchadi.
+  LOW_CREDIT_USD: num(process.env.LOW_CREDIT_USD, 2),
+  CREDIT_CHECK_MIN: Math.max(5, num(process.env.CREDIT_CHECK_MIN, 60)),
+  // Har kuni BACKUP_HOUR (soat, TZ_OFFSET_H vaqt mintaqasida) dan keyin baza nusxasi (.json.gz) adminlarga yuboriladi. BACKUP=0 boʻlsa oʻchadi.
+  BACKUP: process.env.BACKUP !== '0',
+  BACKUP_HOUR: Math.min(23, Math.max(0, num(process.env.BACKUP_HOUR, 3))),
+  TZ_OFFSET_H: num(process.env.TZ_OFFSET_H, 5),
   // Referal dasturi: taklif qilingan foydalanuvchining har bir TASDIQLANGAN toʻldirishidan shuncha foiz taklif qilganga balansga qoʻshiladi.
   // 0 boʻlsa dastur oʻchadi. Bonus faqat haqiqiy toʻlovdan keyin beriladi, shuning uchun soxta akkauntlar zarar keltirmaydi.
   REFERRAL_PERCENT: Math.min(50, Math.max(0, num(process.env.REFERRAL_PERCENT, 10))),

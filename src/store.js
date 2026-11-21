@@ -356,6 +356,36 @@ class Store {
     return fixed;
   }
 
+  // ---------- kichik belgilar (oxirgi nusxa sanasi, ogohlantirish vaqti): restartdan keyin ham saqlanadi (meta qatori bilan) ----------
+  getFlag(name) {
+    return (this.db.seq.flags || {})[name];
+  }
+  setFlag(name, value) {
+    this.db.seq.flags = Object.assign({}, this.db.seq.flags, { [name]: value });
+    this._mark('meta', 'seq');
+    this.save();
+  }
+  /** Butun bazaning nusxasi (zaxira uchun). light=true boʻlsa, ogʻir maydonlar (tayyor taqdimot/hujjat matni) tashlanadi. */
+  snapshot({ light = false } = {}) {
+    const d = this.db;
+    const strip = (o) => {
+      if (!light) return o;
+      const { deck, doc, finalSlides, ...rest } = o;
+      return rest;
+    };
+    return {
+      exportedAt: new Date().toISOString(),
+      light,
+      counts: { users: Object.keys(d.users).length, orders: d.orders.length, payments: d.payments.length, ledger: d.ledger.length, promos: Object.keys(d.promos || {}).length },
+      seq: d.seq,
+      users: d.users,
+      orders: d.orders.map(strip),
+      payments: d.payments,
+      ledger: d.ledger,
+      promos: d.promos || {},
+    };
+  }
+
   // ---------- to'lovlar ----------
   addPayment(p) {
     const pay = Object.assign({ id: ++this.db.seq.payment, createdAt: Date.now(), status: 'waiting_receipt' }, p);
@@ -370,6 +400,8 @@ class Store {
   updatePayment(id, patch) {
     const p = this.getPayment(id);
     if (p) {
+      // chek yuborilgan va admin kutilayotgan paytni eslab qolamiz (admin eslatmalari shundan hisoblanadi)
+      if (patch && patch.status === 'pending' && patch.pendingAt === undefined) patch = Object.assign({}, patch, { pendingAt: Date.now() });
       Object.assign(p, patch);
       this._mark('payment', p.id);
       this.save();

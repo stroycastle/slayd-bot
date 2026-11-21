@@ -5,6 +5,8 @@ const { createServer, hooks } = require('./server');
 const { createWebHandler, createWebServer } = require('./web');
 const { createBackend } = require('./supabase');
 const { startKeepAlive } = require('./keepalive');
+const { createWatchdog } = require('./watchdog');
+const llm = require('./llm');
 
 function fail(msg) {
   console.error('\n❌ ' + msg + '\n');
@@ -35,6 +37,7 @@ else console.warn(`ℹ️  Ombor: fayl (${config.DATA_DIR}). Hostingda disk vaqt
 
 const store = new Store(config.DATA_DIR, { backend });
 const bot = createBot({ store });
+const watchdog = createWatchdog({ store, bot, llm, fmt });
 const webOn = config.WEBAPP && (config.WEBHOOK_URL || config.WEB_PORT);
 const webHandler = webOn ? createWebHandler({ store, bot }) : null;
 
@@ -73,9 +76,11 @@ let webServer = null;
       .sendMessage(o.userId, `Bot qayta ishga tushgani sababli #${o.id} taqdimot uchun himoya savollari tayyorlanmadi. ${fmt(o.defensePrice)} balansingizga qaytarildi, Ilovada qayta urinib koʻring.`)
       .catch(() => {});
   }
+  watchdog.start(); // tasdiqlanmagan chek eslatmasi, OpenRouter hisobi ogohlantirishi, kunlik baza nusxasi
   await bot.telegram
     .setMyCommands([
       { command: 'start', description: 'Boshlash' },
+      { command: 'namuna', description: 'Taqdimot namunalari' },
       { command: 'cancel', description: 'Bekor qilish' },
       { command: 'id', description: 'ID raqamim' },
     ])

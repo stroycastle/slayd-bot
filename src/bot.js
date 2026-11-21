@@ -11,6 +11,7 @@ const referral = require('./referral');
 const admin = require('./admin');
 const promo = require('./promo');
 const rating = require('./rating');
+const backup = require('./backup');
 
 const BTN_NEW = '📊 Yangi taqdimot';
 const BTN_DOC = '📄 Referat / Kurs ishi';
@@ -18,6 +19,7 @@ const BTN_EDIT = '✏️ Tahrirlash';
 const BTN_BAL = '💰 Balans';
 const BTN_REF = '🎁 Doʻst taklif qilish';
 const BTN_HELP = 'ℹ️ Narxlar va yordam';
+const BTN_SAMPLE = '🖼 Namuna koʻrish';
 
 const LANGS = {
   uz: 'Oʻzbekcha (lotin)',
@@ -74,10 +76,14 @@ function createBot({ store, download }) {
   bot.catch((err) => console.error('Bot xatosi:', err));
 
   const flat = config.PRICE_DECK > 0;
+  // narx: 8–20 slayd bir narx, 21–30 slayd boshqa narx (config.deckPrice); pogʻonasiz boʻlsa, hamma uchun bir xil
+  const tierText = (b) => `${config.MIN_SLIDES}–${config.DECK_LARGE_FROM - 1} slayd — ${b ? '<b>' : ''}${fmt(config.PRICE_DECK)}${b ? '</b>' : ''}, ${config.DECK_LARGE_FROM}–${config.MAX_SLIDES} slayd — ${b ? '<b>' : ''}${fmt(config.PRICE_DECK_LARGE)}${b ? '</b>' : ''}`;
   const priceLine = () =>
-    flat
-      ? `• Taqdimot (${config.MIN_SLIDES}–${config.MAX_SLIDES} slayd, narxi bir xil) — <b>${fmt(config.PRICE_DECK)}</b>`
-      : `• 1 ta slayd — <b>${fmt(config.PRICE_SLIDE)}</b>`;
+    !flat
+      ? `• 1 ta slayd — <b>${fmt(config.PRICE_SLIDE)}</b>`
+      : config.deckTiered()
+        ? `• Taqdimot: ${tierText(true)}`
+        : `• Taqdimot (${config.MIN_SLIDES}–${config.MAX_SLIDES} slayd, narxi bir xil) — <b>${fmt(config.PRICE_DECK)}</b>`;
   const shortfallRefund = service.shortfallRefund; // kam slayd chiqsa qaytariladigan pul (mini ilova bilan umumiy)
 
   const welcome = () =>
@@ -97,7 +103,42 @@ function createBot({ store, download }) {
         .sendMessage(refId, `👥 Sizning havolangiz orqali yangi foydalanuvchi qoʻshildi. U balansini toʻldirganda, har safar summaning <b>${config.REFERRAL_PERCENT}%</b> sizga bonus boʻlib tushadi.`, HTML)
         .catch(() => {});
     }
-    return ctx.reply(welcome(), { ...HTML, ...menu });
+    return ctx
+      .reply(welcome(), { ...HTML, ...menu })
+      .then(() =>
+        // yangi kelgan odam taqdimot qanday chiqishini oldindan koʻrsin: tugma bosilsa namuna rasmlari yuboriladi
+        samplePhotos().length
+          ? ctx.reply('Taqdimot qanday koʻrinishda chiqishini koʻrmoqchimisiz?', Markup.inlineKeyboard([[Markup.button.callback(BTN_SAMPLE, 'sample')]]))
+          : null
+      );
+  });
+
+  // ------------------------------------------------------------ namuna
+  // Tayyor koʻrinishlar rasmlari (assets/previews) albom qilib yuboriladi. Toʻlov ham, bonus ham yoʻq.
+  const SAMPLE_COLORS = ['blue', 'green', 'orange'];
+  const samplePhotos = () => SAMPLE_COLORS.map((c) => previewFile(c)).filter(Boolean);
+  const lastSample = new Map(); // foydalanuvchi -> oxirgi namuna vaqti (tugmani ketma-ket bosib yuborishdan saqlaydi)
+  const sendSamples = async (ctx) => {
+    const t = Date.now();
+    if (t - (lastSample.get(ctx.from.id) || 0) < 8000) return null;
+    lastSample.set(ctx.from.id, t);
+    if (lastSample.size > 5000) lastSample.clear();
+    const files = samplePhotos();
+    if (!files.length) return ctx.reply(`Namunalar hozircha mavjud emas. «${BTN_NEW}» tugmasidan boshlashingiz mumkin.`, menu);
+    const caption = '🖼 Namuna: 20 xil koʻrinishdan baʼzilari (har rangda 20 tasi bor). Rangni va koʻrinishni oʻzingiz tanlaysiz, mavzuni yozsangiz — shu uslubda yasab beraman.';
+    try {
+      if (files.length > 1) await ctx.replyWithMediaGroup(files.map((f, i) => ({ type: 'photo', media: { source: f }, ...(i === 0 ? { caption } : {}) })));
+      else await ctx.replyWithPhoto({ source: files[0] }, { caption });
+    } catch (e) {
+      console.warn('Namuna yuborilmadi:', String(e.message || e).slice(0, 120));
+      return ctx.reply('Namuna rasmlarini hozir yuborib boʻlmadi. Birozdan keyin /namuna ni qayta urinib koʻring.');
+    }
+    return ctx.reply(`Yoqdimi? «${BTN_NEW}» tugmasini bosing.`, menu);
+  };
+  bot.command('namuna', sendSamples);
+  bot.action('sample', async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    return sendSamples(ctx);
   });
 
   // ------------------------------------------------------------ referal
@@ -144,7 +185,7 @@ function createBot({ store, download }) {
       `<b>Narxlar</b>\n${priceLine()}\n• Tahrir: ${fmt(config.PRICE_EDIT)}\n• Referat: ${fmt(config.PRICE_REFERAT)} · Kurs ishi: ${fmt(config.PRICE_KURS)}\n\n` +
         `<b>Qanday ishlaydi</b>\n1. Balansni toʻldirasiz (kartaga oʻtkazib, chekni yuborasiz).\n2. «${BTN_NEW}» — mavzu, slaydlar soni, til, rang, koʻrinish (20 xil), maʼruza matni.\n3. Taqdimot tayyor boʻlgach .pptx va PDF keladi.\n4. Oʻzgartirish kerak boʻlsa «${BTN_EDIT}».\n5. Referat yoki kurs ishi kerak boʻlsa «${BTN_DOC}»: Word (.docx) va PDF keladi.\n\n` +
         `<b>Muhim</b>\nMatnni AI yozadi. Topshirishdan oldin oʻqib chiqing, faktlar va adabiyotlar roʻyxatini tekshiring, kerak boʻlsa oʻz soʻzingiz bilan moslang.\n\n` +
-        `<b>Promo-kod</b>\n/promo <i>KOD</i> — bonus oling (bir foydalanuvchi bir marta).\n\n<b>Savol yoki muammo</b>\n/murojaat <i>matn</i> — adminga yuboriladi.` +
+        `<b>Namuna</b>\n/namuna — taqdimot koʻrinishlari rasmi.\n\n<b>Promo-kod</b>\n/promo <i>KOD</i> — bonus oling (bir foydalanuvchi bir marta).\n\n<b>Savol yoki muammo</b>\n/murojaat <i>matn</i> — adminga yuboriladi.` +
         (config.WEBAPP_URL ? `\n\n<a href="${esc(config.WEBAPP_URL)}/privacy.html">Maxfiylik siyosati</a>` : ''),
       { ...HTML, disable_web_page_preview: true }
     )
@@ -198,7 +239,7 @@ function createBot({ store, download }) {
     [Markup.button.callback('❌ Bekor qilish', 'cancel')],
   ]);
   const askSlides = (ctx) =>
-    ctx.reply(`Nechta slayd kerak? Tugmani bosing yoki ${config.MIN_SLIDES}–${config.MAX_SLIDES} oraligʻida raqam yozing.\n${flat ? `Narxi: ${fmt(config.PRICE_DECK)} (slayd soniga bogʻliq emas).` : `Narxi: ${fmt(config.PRICE_SLIDE)} / slayd.`}`, slidesKb);
+    ctx.reply(`Nechta slayd kerak? Tugmani bosing yoki ${config.MIN_SLIDES}–${config.MAX_SLIDES} oraligʻida raqam yozing.\n${!flat ? `Narxi: ${fmt(config.PRICE_SLIDE)} / slayd.` : config.deckTiered() ? `Narxi: ${tierText(false)}.` : `Narxi: ${fmt(config.PRICE_DECK)} (slayd soniga bogʻliq emas).`}`, slidesKb);
 
   const askLang = (ctx) =>
     ctx.reply(
@@ -579,11 +620,13 @@ function createBot({ store, download }) {
     const pay = ok ? store.approvePayment(ctx.match[2], ctx.from.id, { referralPercent: config.REFERRAL_PERCENT }) : store.rejectPayment(ctx.match[2], ctx.from.id);
     if (!pay) return ctx.answerCbQuery('Bu toʻlov allaqachon koʻrib chiqilgan').catch(() => {});
     await ctx.answerCbQuery(ok ? 'Tasdiqlandi' : 'Rad etildi').catch(() => {});
+    const old = (ctx.callbackQuery.message && (ctx.callbackQuery.message.caption || ctx.callbackQuery.message.text)) || '';
+    const note = `${old}\n\n${ok ? '✅ Tasdiqlandi' : '❌ Rad etildi'} (admin ${ctx.from.id})`;
     try {
-      const old = (ctx.callbackQuery.message && (ctx.callbackQuery.message.caption || ctx.callbackQuery.message.text)) || '';
-      await ctx.editMessageCaption(`${old}\n\n${ok ? '✅ Tasdiqlandi' : '❌ Rad etildi'} (admin ${ctx.from.id})`);
+      await ctx.editMessageCaption(note);
     } catch (e) {
-      /* xabarni yangilab boʻlmasa, muhim emas */
+      // matnli xabar (eslatma) boʻlsa, sarlavha emas, matnni yangilaymiz; boʻlmasa, muhim emas
+      await ctx.editMessageText(note).catch(() => {});
     }
     const u = store.getUser(pay.userId);
     const msg = ok
@@ -667,6 +710,17 @@ function createBot({ store, download }) {
     return ctx.reply(
       `${u.name || 'Nomaʼlum'} ${u.username ? '@' + u.username : ''} (ID ${u.id})\nBalans: ${fmt(u.balance)}\nSarflagan: ${fmt(t.spent)} · toʻldirgan: ${fmt(t.topups)}\nTayyor ishlar: ${t.orders}\nTaklif qilganlar: ${d.referral.invited}${d.referral.by ? `\nUni taklif qilgan: ${d.referral.by.name || d.referral.by.id} (ID ${d.referral.by.id})` : ''}`
     );
+  });
+  // baza nusxasini hoziroq soʻrash (har kuni ham avtomatik keladi)
+  bot.command('backup', async (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    await ctx.reply('Baza nusxasi tayyorlanmoqda…');
+    try {
+      const n = await backup.sendBackup(bot.telegram, store, [ctx.from.id], { date: backup.localParts(config.TZ_OFFSET_H).date });
+      if (!n) return ctx.reply('Nusxani yuborib boʻlmadi.');
+    } catch (e) {
+      return ctx.reply('Nusxani tayyorlab boʻlmadi: ' + String(e.message || e).slice(0, 200));
+    }
   });
   bot.command('ai', async (ctx) => {
     if (!isAdmin(ctx.from.id)) return;

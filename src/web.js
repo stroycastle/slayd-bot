@@ -110,7 +110,7 @@ function createWebHandler({ store, bot }) {
       return {
         user: publicMe(store.getUser(uid)),
         config: {
-          flat: config.PRICE_DECK > 0, priceDeck: config.PRICE_DECK, priceSlide: config.PRICE_SLIDE, priceEdit: config.PRICE_EDIT,
+          flat: config.PRICE_DECK > 0, priceDeck: config.PRICE_DECK, priceDeckLarge: config.deckTiered() ? config.PRICE_DECK_LARGE : 0, largeFrom: config.DECK_LARGE_FROM, priceSlide: config.PRICE_SLIDE, priceEdit: config.PRICE_EDIT,
           priceReferat: config.PRICE_REFERAT, priceKurs: config.PRICE_KURS,
           docs: { referat: { min: KINDS.referat.min, max: KINDS.referat.max, def: KINDS.referat.def }, kurs: { min: KINDS.kurs.min, max: KINDS.kurs.max, def: KINDS.kurs.def } },
           priceDefense: config.PRICE_DEFENSE, defenseQuestions: config.DEFENSE_QUESTIONS, referralPercent: config.REFERRAL_PERCENT,
@@ -243,13 +243,19 @@ function createWebHandler({ store, bot }) {
       const caption = `💳 To'lov #${pay.id} (Mini App)\nFoydalanuvchi: ${u.name} ${u.username ? '@' + u.username : ''} (ID ${u.id})\nSumma: ${fmt(pay.amount)}`;
       const kb = Markup.inlineKeyboard([[Markup.button.callback('✅ Tasdiqlash', `pay:ok:${pay.id}`), Markup.button.callback('❌ Rad etish', `pay:no:${pay.id}`)]]);
       let delivered = 0;
+      let fileId = null; // eslatmada chekni qayta koʻrsatish uchun Telegramdagi fayl ID si saqlanadi
       for (const adminId of config.ADMIN_IDS) {
-        try { await bot.telegram.sendPhoto(adminId, { source: buf }, { caption, ...kb }); delivered++; } catch (e) { console.error('Adminga yuborib boʻlmadi:', adminId, e.message); }
+        try {
+          const sent = await bot.telegram.sendPhoto(adminId, { source: buf }, { caption, ...kb });
+          delivered++;
+          if (!fileId && sent && Array.isArray(sent.photo) && sent.photo.length) fileId = sent.photo[sent.photo.length - 1].file_id;
+        } catch (e) { console.error('Adminga yuborib boʻlmadi:', adminId, e.message); }
       }
       if (!delivered) {
         store.updatePayment(pay.id, { status: 'waiting_receipt' });
         throw new HttpError(502, 'send_failed', 'Chekni adminga yuborib boʻlmadi. Birozdan keyin qayta urinib koʻring.');
       }
+      if (fileId) store.updatePayment(pay.id, { fileId });
       return { ok: true };
     }
 
