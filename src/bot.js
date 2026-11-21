@@ -166,6 +166,7 @@ function createBot({ store, download }) {
     if (!code) return ctx.reply(`Promo-kodingiz bormi? Shunday yozing:\n/promo KODINGIZ\n\nBir foydalanuvchi bitta promo-kod ishlata oladi.`, menu);
     const r = promo.redeem(store, ctx.from.id, code);
     if (!r.ok) return ctx.reply(r.message, menu);
+    promo.notifyOwner(bot.telegram, r); // kod egasiga bonus va xabar (agar belgilangan boʻlsa)
     return ctx.reply(`🎉 Promo-kod qabul qilindi! Balansingizga ${fmt(r.amount)} qoʻshildi. Hozirgi balans: ${fmt(r.balance)}.`, menu);
   });
 
@@ -522,7 +523,8 @@ function createBot({ store, download }) {
     return ctx.reply(
       `Qancha pul tashlaysiz? Summani raqam bilan yozing (kamida ${fmt(config.MIN_TOPUP)}) yoki tugmani bosing.`,
       Markup.inlineKeyboard([
-        [30000, 60000, 100000].map((n) => Markup.button.callback(fmt(n), `topup:amt:${n}`)),
+        [5000, 10000, 30000].filter((n) => n >= config.MIN_TOPUP).map((n) => Markup.button.callback(fmt(n), `topup:amt:${n}`)),
+        [60000, 100000].map((n) => Markup.button.callback(fmt(n), `topup:amt:${n}`)),
         [Markup.button.callback('❌ Bekor qilish', 'cancel')],
       ])
     );
@@ -633,7 +635,20 @@ function createBot({ store, download }) {
     if (!isAdmin(ctx.from.id)) return;
     const list = store.listPromos();
     if (!list.length) return ctx.reply('Hali promo-kod yoʻq. Yaratish: /yangipromo');
-    return ctx.reply(list.slice(0, 30).map((p) => `${p.active ? '🟢' : '⚪️'} ${p.code} — ${fmt(p.amount)} · ${p.used}/${p.maxUses || '∞'}`).join('\n'));
+    return ctx.reply(list.slice(0, 30).map((p) => `${p.active ? '🟢' : '⚪️'} ${p.code} — ${fmt(p.amount)} · ${p.used}/${p.maxUses || '∞'}${p.owner ? ` · egasi ${p.owner} (+${fmt(p.ownerBonus)})` : ''}`).join('\n'));
+  });
+  // kod egasi: /promoegasi KOD FOYDALANUVCHI_ID [bonus]  (ID oʻrniga 0 — olib tashlash)
+  bot.command('promoegasi', (ctx) => {
+    if (!isAdmin(ctx.from.id)) return;
+    const [, code, ownerId, bonus] = ctx.message.text.trim().split(/\s+/);
+    const usage = `Format: /promoegasi KOD ID [bonus]\nMasalan: /promoegasi UZBSQUARE 6701565580 10000\nOlib tashlash: /promoegasi UZBSQUARE 0`;
+    if (!code || ownerId == null) return ctx.reply(usage);
+    const r = promo.setOwner(store, code, ownerId, bonus);
+    if (!r.ok) return ctx.reply(`${r.message}\n${usage}`);
+    const p = r.promo;
+    return ctx.reply(p.owner
+      ? `✅ ${p.code}: egasi ${p.owner}. Kod orqali kirgan har bir yangi foydalanuvchi uchun unga ${fmt(p.ownerBonus)} qoʻshiladi va xabar boradi.`
+      : `✅ ${p.code}: egasi olib tashlandi.`);
   });
   const promoActive = (on) => (ctx) => {
     if (!isAdmin(ctx.from.id)) return;

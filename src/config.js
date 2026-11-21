@@ -82,12 +82,14 @@ module.exports = {
   // Referat/kurs ishida bir vaqtda nechta boʻlim yozdiriladi (bepul modellarda daqiqasiga 20 ta soʻrov chegarasi bor)
   DOC_RETRY_MS: num(process.env.DOC_RETRY_MS, 8000), // boʻlim yozilmasa, qayta urinishdan oldin kutish (1-urinishdan keyin 1x, 2-urinishdan keyin 2x)
   DOC_CONCURRENCY: Math.min(4, Math.max(1, num(process.env.DOC_CONCURRENCY, 2))),
-  MIN_TOPUP: num(process.env.MIN_TOPUP, 10000),
+  MIN_TOPUP: num(process.env.MIN_TOPUP, 5000),
   // Referal dasturi: taklif qilingan foydalanuvchining har bir TASDIQLANGAN toʻldirishidan shuncha foiz taklif qilganga balansga qoʻshiladi.
   // 0 boʻlsa dastur oʻchadi. Bonus faqat haqiqiy toʻlovdan keyin beriladi, shuning uchun soxta akkauntlar zarar keltirmaydi.
   REFERRAL_PERCENT: Math.min(50, Math.max(0, num(process.env.REFERRAL_PERCENT, 10))),
   // Promo-kod: admin kod yaratganda summa koʻrsatilmasa, shuncha soʻm beriladi. Har foydalanuvchi bir umr faqat bitta promo-kod ishlata oladi.
   PROMO_AMOUNT: num(process.env.PROMO_AMOUNT, 3000),
+  // Kod egasiga (/promoegasi) kod orqali kirgan har bir yangi foydalanuvchi uchun balansga shuncha soʻm qoʻshiladi (summa koʻrsatilmasa).
+  PROMO_OWNER_BONUS: num(process.env.PROMO_OWNER_BONUS, 10000),
   // Taklif havolasi uchun bot nomi (@siz). Bot ishga tushgach, haqiqiy nom Telegramdan olinadi.
   BOT_USERNAME: String(process.env.BOT_USERNAME || 'Space_deckbot').replace(/^@/, '').trim(),
   MIN_SLIDES: 8,

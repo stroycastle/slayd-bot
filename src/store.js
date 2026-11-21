@@ -261,7 +261,30 @@ class Store {
     this._mark('promo', code);
     this._mark('user', u.id);
     this.credit(u.id, p.amount, `Promo-kod: ${code}`, 'promo');
-    return { ok: true, amount: p.amount, balance: u.balance };
+    const res = { ok: true, amount: p.amount, balance: u.balance };
+    // Kod egasi (hamkor) belgilangan boʻlsa, kod orqali kirgan har bir foydalanuvchi uchun unga ham bonus tushadi.
+    // Egasi oʻz kodini oʻzi ishlatsa, bonus berilmaydi.
+    const owner = p.owner ? this.getUser(p.owner) : null;
+    if (owner && owner.id !== u.id && p.ownerBonus > 0
+      && this.credit(owner.id, p.ownerBonus, `Promo-kod ${code} orqali kirgan foydalanuvchi (ID ${u.id})`, 'promo')) {
+      res.owner = { to: owner.id, amount: p.ownerBonus, balance: owner.balance, code };
+    }
+    return res;
+  }
+  /** Kod egasini belgilaydi (ownerId boʻsh/0 boʻlsa, olib tashlanadi). Kod topilmasa null. */
+  setPromoOwner(code, ownerId, bonus) {
+    const p = this.getPromo(code);
+    if (!p) return null;
+    if (ownerId) {
+      p.owner = Number(ownerId);
+      p.ownerBonus = Number(bonus) || 0;
+    } else {
+      delete p.owner;
+      delete p.ownerBonus;
+    }
+    this._mark('promo', code);
+    this.save();
+    return p;
   }
 
   // ---------- baholar ----------

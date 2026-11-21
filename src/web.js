@@ -259,6 +259,7 @@ function createWebHandler({ store, bot }) {
       const b = await readJson(req);
       const r = promo.redeem(store, uid, b.code);
       if (!r.ok) throw new HttpError(r.code, r.error, r.message);
+      promo.notifyOwner(bot && bot.telegram, r); // kod egasiga bonus va xabar (agar belgilangan boʻlsa)
       return { ok: true, amount: r.amount, balance: r.balance };
     }
 

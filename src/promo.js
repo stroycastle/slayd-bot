@@ -56,7 +56,31 @@ function create(store, adminId, input = {}) {
   return { ok: true, promo };
 }
 
+/** Kod egasiga yuboriladigan xabar (har bir yangi foydalanuvchi uchun bitta). Matn egasi soʻragandek, oʻzgarishsiz. */
+const ownerNotice = (code) => `1 users have been added through your ${code} promo code. Thank you very much. Keep working!!!`;
+
+/** Kod egasiga bonus tushgan boʻlsa (redeem natijasida r.owner), xabar yuboradi. Yuborilmasa (bloklagan boʻlsa), jim oʻtadi. */
+function notifyOwner(telegram, r) {
+  if (!r || !r.ok || !r.owner || !telegram || typeof telegram.sendMessage !== 'function') return Promise.resolve();
+  return Promise.resolve()
+    .then(() => telegram.sendMessage(r.owner.to, ownerNotice(r.owner.code)))
+    .catch(() => {});
+}
+
+/** Admin kod egasini belgilaydi: har bir yangi foydalanuvchi uchun egasiga bonus. ownerId 0 — olib tashlash. */
+function setOwner(store, rawCode, ownerId, bonus) {
+  const code = normalize(rawCode);
+  if (!store.getPromo(code)) return { ok: false, code: 404, error: 'invalid', message: 'Kod topilmadi.' };
+  const id = Number(ownerId);
+  if (!Number.isInteger(id) || id < 0) return { ok: false, code: 400, error: 'invalid', message: 'Foydalanuvchi ID raqam boʻlishi kerak (olib tashlash uchun 0).' };
+  if (id === 0) return { ok: true, promo: store.setPromoOwner(code, 0) };
+  if (!store.getUser(id)) return { ok: false, code: 404, error: 'user', message: 'Bu foydalanuvchi hali botga kirmagan.' };
+  const amount = bonus == null || bonus === '' ? config.PROMO_OWNER_BONUS : Number(bonus);
+  if (!Number.isInteger(amount) || amount < 1 || amount > MAX_AMOUNT) return { ok: false, code: 400, error: 'invalid', message: `Bonus 1 dan ${money(MAX_AMOUNT)} gacha boʻlishi kerak.` };
+  return { ok: true, promo: store.setPromoOwner(code, id, amount) };
+}
+
 /** Roʻyxat uchun koʻrinish. */
 const publicPromo = (p) => ({ code: p.code, amount: p.amount, maxUses: p.maxUses, used: p.used, active: p.active, createdAt: p.createdAt });
 
-module.exports = { normalize, randomCode, redeem, create, publicPromo, CODE_RE, MAX_AMOUNT, MAX_USES, MAX_FAILS };
+module.exports = { normalize, randomCode, redeem, create, setOwner, ownerNotice, notifyOwner, publicPromo, CODE_RE, MAX_AMOUNT, MAX_USES, MAX_FAILS };
