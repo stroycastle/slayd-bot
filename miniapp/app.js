@@ -333,7 +333,7 @@
   // ---------- 3. Yangi taqdimot (bosqichli) ----------
   function screenWizard() {
     const w = state.wiz, c = state.cfg, me = state.me;
-    const price = () => (c.flat ? c.priceDeck : w.slides * c.priceSlide);
+    const price = () => (c.flat ? (c.priceDeckLarge > 0 && w.slides >= c.largeFrom ? c.priceDeckLarge : c.priceDeck) : w.slides * c.priceSlide);
     const close = () => go('home');
     const head = h('div', { class: 'flow-head' },
       h('button', { class: 'icon-btn', 'aria-label': w.step === 1 ? 'Yopish' : 'Orqaga', onclick: () => (w.step === 1 ? close() : (w.step--, render())) }, icon(w.step === 1 ? 'close' : 'back', 24)),
@@ -365,7 +365,7 @@
         h('div', { class: 'card flat' },
           h('div', { class: 'row', style: 'justify-content:space-between;align-items:flex-end' }, h('div', { class: 'bignum' }, num, h('span', { class: 'hint' }, 'slayd')), h('div', { style: 'text-align:right' }, h('div', { class: 'hint' }, 'Narxi'), cost)),
           range, h('div', { class: 'chips', style: 'margin-top:6px' }, chipEls),
-          h('div', { class: 'hint', style: 'margin-top:10px' }, `${c.minSlides}–${c.maxSlides} slayd. Titul varagʻi, reja, xulosa va adabiyotlar ham hisobga kiradi.${c.flat ? ' Narx slayd soniga bogʻliq emas.' : ''}`)));
+          h('div', { class: 'hint', style: 'margin-top:10px' }, `${c.minSlides}–${c.maxSlides} slayd. Titul varagʻi, reja, xulosa va adabiyotlar ham hisobga kiradi.${c.flat ? (c.priceDeckLarge > 0 ? ` ${c.minSlides}–${c.largeFrom - 1} slayd — ${money(c.priceDeck)}, ${c.largeFrom}–${c.maxSlides} slayd — ${money(c.priceDeckLarge)}.` : ' Narx slayd soniga bogʻliq emas.') : ''}`)));
       nextBtn = h('button', { class: 'btn', onclick: () => { if (w.topic.trim().length < 3) { toast('Mavzuni yozing.'); haptic('error'); return; } w.step = 2; render(); window.scrollTo(0, 0); } }, 'Davom etish', icon('arrow', 20));
       var upd = () => { nextBtn.disabled = w.topic.trim().length < 3; };
       fin.append(nextBtn); upd();
@@ -749,7 +749,7 @@
   function screenBalance() {
     const c = state.cfg;
     const [int] = [new Intl.NumberFormat('ru-RU').format(state.me.balance || 0).replace(/\u00a0/g, ' ')];
-    view.append(h('div', { class: 'wallet' }, h('div', { class: 'lab' }, 'Joriy balans'), h('div', { class: 'amt' }, int, h('small', {}, 'soʻm')), h('div', { class: 'lab' }, c.flat ? `Taqdimot — ${money(c.priceDeck)} (slayd soniga bogʻliq emas)` : `1 slayd — ${money(c.priceSlide)}`)));
+    view.append(h('div', { class: 'wallet' }, h('div', { class: 'lab' }, 'Joriy balans'), h('div', { class: 'amt' }, int, h('small', {}, 'soʻm')), h('div', { class: 'lab' }, c.flat ? (c.priceDeckLarge > 0 ? `Taqdimot — ${money(c.priceDeck)} (${c.largeFrom}+ slayd — ${money(c.priceDeckLarge)})` : `Taqdimot — ${money(c.priceDeck)} (slayd soniga bogʻliq emas)`) : `1 slayd — ${money(c.priceSlide)}`)));
     const panel = h('div', {});
     view.append(panel);
     view.append(promoCard());
