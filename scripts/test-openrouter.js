@@ -5,6 +5,8 @@ const assert = require('assert');
 
 // Bu test faqat AI soʻrovlarini sanaydi: jonli qidiruv (research.js) oʻchirib qoʻyiladi, u alohida test-research.js da tekshiriladi.
 process.env.WEB_RESEARCH = '0';
+// Bu test birinchi soʻrov shaklini tekshiradi; kam chiqqan slaydni toʻldirish (qoʻshimcha soʻrov) test-quality.js da sinaladi.
+process.env.DECK_COMPLETE = '0';
 
 const FAKE_KEY = 'sk-or-v1-TESTKEY1234567890';
 let queue = []; // har bir POST so'roviga navbat bilan javob
@@ -166,9 +168,22 @@ server.listen(0, '127.0.0.1', async () => {
     assert.strictEqual(seen.length, 1);
   });
 
-  await step('finish_reason=length: "juda uzun" xatosi', async () => {
+  await step('finish_reason=length: shu modelda 2 baravar token bilan qayta uriniladi, keyin ham kesilsa "juda uzun" xatosi', async () => {
+    queue.push(textReply('{"title":"x","slides":[', 'length'));
     queue.push(textReply('{"title":"x","slides":[', 'length'));
     await assert.rejects(ai.generateDeck(params), /uzun/);
+    assert.strictEqual(seen.length, 2);
+    assert.strictEqual(seen[1].body.max_tokens, Math.min(seen[0].body.max_tokens * 2, config.AI_MAX_TOKENS));
+  });
+
+  await step('javob kesilsa (fikrlovchi model), 2 baravar token bilan qayta urinish muvaffaqiyatli boʻladi', async () => {
+    queue.push(textReply('{"title":"x","slides":[', 'length'));
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    const deck = await ai.generateDeck(params);
+    assert.strictEqual(deck.slides.length, 4);
+    assert.strictEqual(seen.length, 2);
+    assert.strictEqual(seen[0].body.model, seen[1].body.model, 'boshqa modelga emas, shu modelning oʻzida');
+    assert.ok(seen[1].body.max_tokens > seen[0].body.max_tokens);
   });
 
   await step('tushunarsiz javob: xato, kutilmagan holatda ham yiqilmaydi', async () => {
@@ -341,6 +356,37 @@ server.listen(0, '127.0.0.1', async () => {
     queue.push({ status: 402, body: { error: { message: 'Insufficient credits' } } });
     await assert.rejects(ai.generateDeck(params), (e) => /402/.test(e.message));
     assert.strictEqual(seen.length, 1);
+  });
+
+  await step('pul tugasa (402) bepul zaxira modelga oʻtadi; keyingi soʻrovda pullik modellar oʻtkazib yuboriladi; adminga bir marta xabar', async () => {
+    llm.resetCreditState();
+    const ev = [];
+    llm.onKeyEvent((t) => ev.push(t));
+    config.OPENROUTER_FALLBACK_MODELS = ['test/paid-2', 'test/free-3:free'];
+    seen = [];
+    queue.push({ status: 402, body: { error: { message: 'Insufficient credits' } } });
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    let deck = await ai.generateDeck(params);
+    assert.strictEqual(deck.slides.length, 4);
+    assert.deepStrictEqual(seen.map((x) => x.body.model), ['test/model-1', 'test/free-3:free']);
+    seen = [];
+    queue.push(toolReply('submit_deck', RAW_DECK));
+    deck = await ai.generateDeck(params);
+    assert.strictEqual(deck.slides.length, 4);
+    assert.deepStrictEqual(seen.map((x) => x.body.model), ['test/free-3:free']);
+    assert.strictEqual(ev.filter((t) => /pul tugadi/.test(t)).length, 1, ev.join(' | '));
+    llm.onKeyEvent(null);
+    llm.resetCreditState();
+    config.OPENROUTER_FALLBACK_MODELS = ['test/model-2', 'test/model-3'];
+  });
+
+  await step('402 va bepul zaxira yoʻq: darrov xato (pullik zaxiralar oʻtkazilmaydi)', async () => {
+    llm.resetCreditState();
+    seen = [];
+    queue.push({ status: 402, body: { error: { message: 'Insufficient credits' } } });
+    await assert.rejects(ai.generateDeck(params), (e) => /402/.test(e.message));
+    assert.strictEqual(seen.length, 1);
+    llm.resetCreditState();
   });
 
   await step('hamma model ishlamasa: aniq xabar; oxirgi modelda odatdagi qayta urinishlar bor', async () => {

@@ -86,10 +86,14 @@ const deck = (extra) => ({ title: 'Til', slides: ['A', 'B', 'C', 'D'].map((t) =>
   // 9. boshqa tillarda tekshiruv ishlamaydi (bitta chaqiruv, matn tegilmaydi)
   handler = async (system, user) => { calls.push({ system, user }); return deck({ lead: "a'lipbe Привет" }); };
   calls = [];
-  out = await ai.generateDeck({ topic: 'Til', slides: 5, lang: 'uz' });
+  out = await ai.generateDeck({ topic: 'Til', slides: 5, lang: 'ru' });
   assert.strictEqual(calls.length, 1);
   assert.strictEqual(out.slides[0].lead, "a'lipbe Привет");
-  ok('oʻzbekcha va boshqa tillarga tegmaydi');
+  calls = [];
+  out = await ai.generateDeck({ topic: 'Til', slides: 5, lang: 'uz' });
+  assert.strictEqual(calls.length, 1, 'oʻzbekchada ham qayta soʻrov yoʻq');
+  assert.strictEqual(out.slides[0].lead, 'aʼlipbe Привет', 'oʻzbekchada faqat apostrof rasmiy imloga keltiriladi (src/uzfix.js)');
+  ok('ruscha matnga tegilmaydi; oʻzbekchada faqat apostrof tuzatiladi, qayta soʻrov yoʻq');
 
   // 10. qoraqalpoq titul yorliqlari va .pptx yigʻiladi
   assert.ok(LABELS.kaa && LABELS.kaa.by);
