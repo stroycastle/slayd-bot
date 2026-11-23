@@ -19,7 +19,11 @@
     "test:defense": "node scripts/test-defense.js",
     "test:admin": "node scripts/test-admin.js",
     "test:promo": "node scripts/test-promo-rating.js",
-    "test:docs": "node scripts/test-docs.js"
+    "test:docs": "node scripts/test-docs.js",
+    "test:images": "node scripts/test-images.js",
+    "test:refs": "node scripts/test-refs.js",
+    "test:watchdog": "node scripts/test-watchdog.js",
+    "test:quality": "node scripts/test-quality.js"
   },
   "keywords": [],
   "author": "",
