@@ -40,6 +40,8 @@ module.exports = {
 
   // Yangi maʼlumot: AI oʻz xotirasiga (2024-yilgacha) emas, mavzu boʻyicha hozir topilgan manbalarga tayansin.
   // WEB_RESEARCH=0 qilinsa oʻchadi. TAVILY_API_KEY (tavily.com, oyiga 1000 ta bepul qidiruv) boʻlsa shu ishlatiladi, boʻlmasa Vikipediya.
+  // DECK_COMPLETE=0 qilinsa, AI kam slayd yozganda yetishmayotganini qayta soʻrab toʻldirish oʻchadi
+  DECK_COMPLETE: process.env.DECK_COMPLETE !== '0',
   WEB_RESEARCH: process.env.WEB_RESEARCH !== '0',
   TAVILY_API_KEY: (process.env.TAVILY_API_KEY || '').trim(),
   TAVILY_URL: process.env.TAVILY_URL || 'https://api.tavily.com/search',

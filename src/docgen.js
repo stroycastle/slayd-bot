@@ -4,6 +4,7 @@ const config = require('./config');
 const llm = require('./llm');
 const { research, today } = require('./research');
 const qq = require('./qq');
+const uzfix = require('./uzfix');
 const { LANG_RULES, recencyRules } = require('./ai');
 const { scrubReferences } = require('./refs');
 
@@ -47,6 +48,7 @@ function cleanParagraphs(raw, lang) {
       .replace(/\s*\[\d+(?:\s*[,;–-]\s*\d+)*\]/g, '')
       .replace(/\s+/g, ' ').trim();
     if (lang === 'kaa') p = qq.normalizeQq(p);
+    else if (lang === 'uz') p = uzfix.normalizeUz(p);
     if (p.length < 25) continue;
     // sarlavhaga oʻxshash qisqa qator (oxirida tinish belgisi yoʻq): AI sarlavha yozib yuborgan
     if (!out.length && p.split(' ').length <= 7 && !/[.!?…:]$/.test(p)) continue;
@@ -136,7 +138,7 @@ function normalizeOutline(raw, kind, lang) {
   const list = raw && Array.isArray(raw.chapters) ? raw.chapters : [];
   const fixT = (s, max) => {
     const t = cleanTitle(s, max);
-    return lang === 'kaa' ? qq.normalizeQq(t) : t;
+    return lang === 'kaa' ? qq.normalizeQq(t) : lang === 'uz' ? uzfix.normalizeUz(t) : t;
   };
   const seen = new Set();
   const chapters = [];

@@ -293,8 +293,8 @@ function layoutDefinition(s, P, d) {
     items.forEach((it, i) => {
       const x = M + i * (cw + gap);
       card(s, P, x, 3.7, cw, 2.15);
-      addFit(s, it.head, x + 0.25, 3.82, cw - 0.5, 0.55, { max: 20, min: 14, bold: true, color: P.head });
-      addFit(s, it.text, x + 0.25, 4.45, cw - 0.5, 1.3, { max: 17, min: 12, color: P.ink });
+      addFit(s, it.head, x + 0.25, 3.82, cw - 0.5, 0.55, { max: 22, min: 14, bold: true, color: P.head });
+      addFit(s, it.text, x + 0.25, 4.45, cw - 0.5, 1.3, { max: 20, min: 12, color: P.ink });
     });
   }
   if (d.note) addFit(s, d.note, M, noteY, CW, 0.7, { max: 17, min: 13, italic: true, color: P.text2 });
@@ -322,11 +322,11 @@ function layoutCards(s, P, d) {
     if (tall) {
       badge(s, P, i + 1, x + 0.3, y + 0.3, 0.6);
       addFit(s, it.head, x + 0.3, y + 1.1, cw - 0.6, 0.9, { max: 24, min: 15, bold: true, color: P.ink });
-      addFit(s, it.text, x + 0.3, y + 2.05, cw - 0.6, ch - 2.3, { max: 19, min: 13, color: P.ink });
+      addFit(s, it.text, x + 0.3, y + 2.05, cw - 0.6, ch - 2.3, { max: 22, min: 13, color: P.ink });
     } else {
       badge(s, P, i + 1, x + 0.25, y + 0.25, 0.5);
-      addFit(s, it.head, x + 0.95, y + 0.2, cw - 1.2, 0.6, { max: 20, min: 14, bold: true, color: P.ink, valign: 'middle' });
-      addFit(s, it.text, x + 0.25, y + 0.95, cw - 0.5, ch - 1.15, { max: 17, min: 12, color: P.ink });
+      addFit(s, it.head, x + 0.95, y + 0.2, cw - 1.2, 0.6, { max: 22, min: 14, bold: true, color: P.ink, valign: 'middle' });
+      addFit(s, it.text, x + 0.25, y + 0.95, cw - 0.5, ch - 1.15, { max: 20, min: 12, color: P.ink });
     }
   });
 }
@@ -340,7 +340,7 @@ function layoutTwoColumns(s, P, d) {
     card(s, P, x, 1.75, cw, h, i === 1 ? P.accent : undefined);
     const dark = i === 1;
     addFit(s, c.head, x + 0.35, 1.95, cw - 0.7, 0.7, { max: 24, min: 16, bold: true, font: FH, color: dark ? 'FFFFFF' : P.head, valign: 'middle' });
-    addBullets(s, c.bullets, x + 0.35, 2.85, cw - 0.7, h - 1.3, { max: 18, min: 12, color: dark ? 'FFFFFF' : P.ink });
+    addBullets(s, c.bullets, x + 0.35, 2.85, cw - 0.7, h - 1.3, { max: 21, min: 12, color: dark ? 'FFFFFF' : P.ink });
   });
   if (d.note) addFit(s, d.note, M, 6.1, CW, 0.65, { max: 17, min: 13, italic: true, color: P.text2 });
 }
@@ -382,8 +382,8 @@ function layoutProcess(s, P, d) {
     const x = M + i * (cw + gap);
     card(s, P, x, 1.85, cw, 4.2);
     badge(s, P, i + 1, x + 0.3, 2.1, 0.6);
-    addFit(s, it.head, x + 0.3, 2.95, cw - 0.6, 0.95, { max: 21, min: 14, bold: true, color: P.ink });
-    addFit(s, it.text, x + 0.3, 3.95, cw - 0.6, 1.95, { max: 17, min: 12, color: P.ink });
+    addFit(s, it.head, x + 0.3, 2.95, cw - 0.6, 0.95, { max: 23, min: 14, bold: true, color: P.ink });
+    addFit(s, it.text, x + 0.3, 3.95, cw - 0.6, 1.95, { max: 20, min: 12, color: P.ink });
     if (i < n - 1) {
       s.addText('→', { x: x + cw, y: 3.5, w: gap, h: 0.6, fontFace: FB, fontSize: 26, bold: true, color: P.accent, align: 'center', valign: 'middle', margin: 0, isTextBox: true });
     }
@@ -413,8 +413,8 @@ function layoutRows(s, P, d) {
     const y = 1.75 + i * (h + gap);
     card(s, P, M, y, CW, h);
     badge(s, P, i + 1, M + 0.3, y + (h - 0.5) / 2, 0.5);
-    addFit(s, it.head, M + 1.1, y + 0.08, 3.4, h - 0.16, { max: 20, min: 13, bold: true, color: P.head, valign: 'middle' });
-    addFit(s, it.text, M + 4.7, y + 0.08, CW - 5.0, h - 0.16, { max: 17, min: 12, color: P.ink, valign: 'middle' });
+    addFit(s, it.head, M + 1.1, y + 0.08, 3.4, h - 0.16, { max: 22, min: 13, bold: true, color: P.head, valign: 'middle' });
+    addFit(s, it.text, M + 4.7, y + 0.08, CW - 5.0, h - 0.16, { max: 20, min: 12, color: P.ink, valign: 'middle' });
   });
 }
 
@@ -456,7 +456,7 @@ function layoutStats(s, P, d) {
     s.addShape('rect', { x: x + rr, y, w: cw - 2 * rr, h: 0.1, fill: { color: P.accent }, line: { type: 'none' } });
     addFit(s, it.head, x + 0.25, y + 0.5, cw - 0.5, 1.5, { max: n > 3 ? 48 : 60, min: 20, bold: true, font: FH, color: P.num, align: 'center', valign: 'middle', noBreak: true });
     s.addShape('rect', { x: x + cw / 2 - 0.4, y: y + 2.15, w: 0.8, h: 0.05, fill: { color: P.soft }, line: { type: 'none' } });
-    addFit(s, it.text, x + 0.3, y + 2.4, cw - 0.6, h - 2.7, { max: 19, min: 12, color: P.ink, align: 'center' });
+    addFit(s, it.text, x + 0.3, y + 2.4, cw - 0.6, h - 2.7, { max: 22, min: 12, color: P.ink, align: 'center' });
   });
   if (d.note) addFit(s, d.note, M, 6.0, CW, 0.7, { max: 17, min: 13, italic: true, color: P.text2 });
 }
@@ -474,7 +474,7 @@ function layoutTimeline(s, P, d) {
     addFit(s, it.head, x + 0.08, 2.0, cw - 0.16, 1.05, { max: 22, min: 12, bold: true, font: FH, color: P.head, align: 'center', valign: 'bottom', noBreak: true });
     s.addShape('ellipse', { x: cx - 0.2, y: ly - 0.2, w: 0.4, h: 0.4, fill: { color: P.accent }, line: { color: P.bg, width: 3 } });
     card(s, P, x + 0.08, 4.0, cw - 0.16, 2.5);
-    addFit(s, it.text, x + 0.25, 4.15, cw - 0.5, 2.2, { max: n <= 4 ? 20 : 17, min: 12, color: P.ink, align: 'center', valign: 'middle' });
+    addFit(s, it.text, x + 0.25, 4.15, cw - 0.5, 2.2, { max: n <= 4 ? 22 : 19, min: 12, color: P.ink, align: 'center', valign: 'middle' });
   });
 }
 
@@ -542,10 +542,10 @@ function layoutSplit(s, P, d) {
     const y = py + i * (h + gap);
     s.addShape('rect', { x: x0, y, w: 0.08, h, fill: { color: P.accent }, line: { type: 'none' } });
     if (it.head) {
-      addFit(s, it.head, x0 + 0.3, y + 0.04, w0 - 0.3, 0.45, { max: 21, min: 14, bold: true, color: P.head, valign: 'middle' });
-      addFit(s, it.text, x0 + 0.3, y + 0.52, w0 - 0.3, h - 0.56, { max: 17, min: 12, color: P.ink });
+      addFit(s, it.head, x0 + 0.3, y + 0.04, w0 - 0.3, 0.45, { max: 23, min: 14, bold: true, color: P.head, valign: 'middle' });
+      addFit(s, it.text, x0 + 0.3, y + 0.52, w0 - 0.3, h - 0.56, { max: 20, min: 12, color: P.ink });
     } else {
-      addFit(s, it.text, x0 + 0.3, y + 0.05, w0 - 0.3, h - 0.1, { max: 19, min: 12, color: P.ink, valign: 'middle' });
+      addFit(s, it.text, x0 + 0.3, y + 0.05, w0 - 0.3, h - 0.1, { max: 22, min: 12, color: P.ink, valign: 'middle' });
     }
   });
 }
@@ -585,10 +585,10 @@ function layoutPhoto(s, P, d) {
     const y = py + i * (h + gap);
     s.addShape('rect', { x: x0, y, w: 0.08, h, fill: { color: P.accent }, line: { type: 'none' } });
     if (it.head) {
-      addFit(s, it.head, x0 + 0.3, y + 0.04, w0 - 0.3, 0.45, { max: 21, min: 14, bold: true, color: P.head, valign: 'middle' });
-      addFit(s, it.text, x0 + 0.3, y + 0.52, w0 - 0.3, h - 0.56, { max: 17, min: 12, color: P.ink });
+      addFit(s, it.head, x0 + 0.3, y + 0.04, w0 - 0.3, 0.45, { max: 23, min: 14, bold: true, color: P.head, valign: 'middle' });
+      addFit(s, it.text, x0 + 0.3, y + 0.52, w0 - 0.3, h - 0.56, { max: 20, min: 12, color: P.ink });
     } else {
-      addFit(s, it.text, x0 + 0.3, y + 0.05, w0 - 0.3, h - 0.1, { max: 19, min: 12, color: P.ink, valign: 'middle' });
+      addFit(s, it.text, x0 + 0.3, y + 0.05, w0 - 0.3, h - 0.1, { max: 22, min: 12, color: P.ink, valign: 'middle' });
     }
   });
 }
@@ -611,7 +611,7 @@ function layoutPyramid(s, P, d) {
     if (it.head && it.text) {
       const lx = cxp + bw / 2 + 0.1;
       s.addShape('rect', { x: lx, y: y + h / 2 - 0.01, w: M + zoneW + 0.35 - lx, h: 0.02, fill: { color: P.soft }, line: { type: 'none' } });
-      addFit(s, it.text, M + zoneW + 0.5, y, CW - zoneW - 0.5, h, { max: 17, min: 12, color: P.ink, valign: 'middle' });
+      addFit(s, it.text, M + zoneW + 0.5, y, CW - zoneW - 0.5, h, { max: 20, min: 12, color: P.ink, valign: 'middle' });
     }
   });
 }
@@ -624,8 +624,8 @@ function layoutCycle(s, P, d) {
   const box = (it, i, x, y, w, h) => {
     card(s, P, x, y, w, h);
     badge(s, P, i + 1, x + 0.25, y + 0.25, 0.5);
-    addFit(s, it.head, x + 0.95, y + 0.2, w - 1.2, 0.6, { max: 20, min: 14, bold: true, color: P.ink, valign: 'middle' });
-    addFit(s, it.text, x + 0.25, y + 0.95, w - 0.5, h - 1.1, { max: 16, min: 12, color: P.ink });
+    addFit(s, it.head, x + 0.95, y + 0.2, w - 1.2, 0.6, { max: 22, min: 14, bold: true, color: P.ink, valign: 'middle' });
+    addFit(s, it.text, x + 0.25, y + 0.95, w - 0.5, h - 1.1, { max: 19, min: 12, color: P.ink });
   };
   if (n === 4) {
     const cw = 4.9;
@@ -677,7 +677,7 @@ function layoutVersus(s, P, d) {
     card(s, P, x, 1.75, cw, h);
     card(s, P, x, 1.75, cw, 0.95, i === 0 ? P.accentDark : P.accent);
     addFit(s, c.head, x + 0.3, 1.8, cw - 0.6, 0.85, { max: 24, min: 15, bold: true, font: FH, color: 'FFFFFF', align: 'center', valign: 'middle' });
-    addBullets(s, c.bullets, x + 0.4, 3.0, cw - 0.8, h - 1.5, { max: 18, min: 12, color: P.ink });
+    addBullets(s, c.bullets, x + 0.4, 3.0, cw - 0.8, h - 1.5, { max: 21, min: 12, color: P.ink });
   });
   const d0 = 0.9;
   s.addShape('ellipse', { x: W / 2 - d0 / 2, y: 1.75 + 0.475 - d0 / 2, w: d0, h: d0, fill: { color: P.tblHead }, line: { color: P.bg, width: 3 } });
